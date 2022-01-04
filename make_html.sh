@@ -74,7 +74,7 @@ IMGDIR="${3}"
 ONE_OR_MANY="${4}"
 
 TEMPLATE=`make_template`
-IMG_TEMP='<img src="images/empoa/###file" ###alt ###size />'
+IMG_TEMP='<img src="images/empoa/members/###file" ###alt ###size />'
 LNNO=0
 
 rm -rf "${2}"
