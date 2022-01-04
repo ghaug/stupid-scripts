@@ -120,7 +120,7 @@ while read MEMBER ; do
         fi
         if [[ "$CREW1" != ABSENT ]]; then
             echo -n " Crew1: $CREW1"
-            if [[ "CREW1" == LANDSCAPE ]]; then
+            if [[ "$CREW1" == LANDSCAPE ]]; then
                 SIZE='width="200"'
             else
                 SIZE='height="200"'
@@ -133,7 +133,7 @@ while read MEMBER ; do
         fi
         if [[ "$CREW2" != ABSENT ]]; then
             echo -n " Crew2: $CREW2"
-            if [[ "CREW2" == LANDSCAPE ]]; then
+            if [[ "$CREW2" == LANDSCAPE ]]; then
                 SIZE='width="200"'
             else
                 SIZE='height="200"'
