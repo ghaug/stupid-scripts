@@ -45,6 +45,7 @@ make_template() {
     echo '</tbody>'
     echo '</table>'
     echo '<p>###images</p>'
+    echo '###footer'
 }
 
 
@@ -147,8 +148,14 @@ while read MEMBER ; do
         echo " - $IMNO image(s)"
         CUR_TEMP=`echo "$CUR_TEMP" | sed s%###images%"$IMAGELINE"%g`
         if [[ "$ONE_OR_MANY" == '1' ]]; then
+            if [[ $IMNO -gt 0 ]]; then
+                CUR_TEMP=`echo "$CUR_TEMP" | sed s/###footer/"\<p\>\&nbsp;\<\/p\>"/g`
+            else
+                CUR_TEMP=`echo "$CUR_TEMP" | sed s/###footer//g`
+            fi                
             echo "$CUR_TEMP" >> "${2}"
         else
+            CUR_TEMP=`echo "$CUR_TEMP" | sed s/###footer//g`
             echo "$CUR_TEMP" >"${2}/$FILENAME_BASE.htm"
         fi
     fi
