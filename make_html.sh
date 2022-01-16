@@ -39,7 +39,7 @@ make_template() {
     echo '<td>###8</td>'
     echo '</tr>'
     echo '<tr>'
-    echo '<td>Details:</td>'
+    echo '<td>Details: ###10</td>'
     echo '<td>---</td>'
     echo '</tr>'
     echo '</tbody>'
@@ -103,18 +103,19 @@ while read MEMBER ; do
         CUR_TEMP=`echo "$CUR_TEMP" | sed s/###6/"$REGISTRATION6"/g`
         CUR_TEMP=`echo "$CUR_TEMP" | sed s/###7/"$TYPE7"/g`
         CUR_TEMP=`echo "$CUR_TEMP" | sed s/###8/"$HOMEBASE8"/g`
+        CUR_TEMP=`echo "$CUR_TEMP" | sed s/###10/"$DETAILS10"/g`
         CREW1=`img_size "${FILENAME_BASE}_1.jpg"`
         CREW2=`img_size "${FILENAME_BASE}_2.jpg"`
         AIRCRAFT=`img_size "${FILENAME_BASE}_ac.jpg"`
-        # landscape => width 200 else height 200
+        # landscape => width 150 else height 150
         IMAGELINE=""
         IMNO=0
         if [[ "$AIRCRAFT" != ABSENT ]]; then
             echo -n " Aircraft: $AIRCRAFT"
             if [[ "$AIRCRAFT" == LANDSCAPE ]]; then
-                SIZE='width="200"'
+                SIZE='width="150"'
             else
-                SIZE='height="200"'
+                SIZE='height="150"'
             fi
             let IMNO++
             IMAGELINE=`echo "$IMG_TEMP" | sed s/###file/${FILENAME_BASE}_ac.jpg/g | sed s/###size/$SIZE/g | sed s/###alt/alt=\"$REGISTRATION6\"/g`
@@ -122,9 +123,9 @@ while read MEMBER ; do
         if [[ "$CREW1" != ABSENT ]]; then
             echo -n " Crew1: $CREW1"
             if [[ "$CREW1" == LANDSCAPE ]]; then
-                SIZE='width="200"'
+                SIZE='width="150"'
             else
-                SIZE='height="200"'
+                SIZE='height="150"'
             fi
             if [[ "$IMAGELINE" != "" ]]; then
                 IMAGELINE="${IMAGELINE};"
@@ -135,9 +136,9 @@ while read MEMBER ; do
         if [[ "$CREW2" != ABSENT ]]; then
             echo -n " Crew2: $CREW2"
             if [[ "$CREW2" == LANDSCAPE ]]; then
-                SIZE='width="200"'
+                SIZE='width="150"'
             else
-                SIZE='height="200"'
+                SIZE='height="150"'
             fi
             if [[ "$IMAGELINE" != "" ]]; then
                 IMAGELINE="${IMAGELINE};"
