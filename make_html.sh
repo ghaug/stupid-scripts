@@ -39,8 +39,8 @@ make_template() {
     echo '<td>###8</td>'
     echo '</tr>'
     echo '<tr>'
-    echo '<td>Details: ###10</td>'
-    echo '<td>---</td>'
+    echo '<td>Details:</td>'
+    echo '<td>###A</td>'
     echo '</tr>'
     echo '</tbody>'
     echo '</table>'
@@ -83,27 +83,23 @@ if [[ "$ONE_OR_MANY" != '1' ]]; then
     mkdir "${2}"
 fi
 
-while read MEMBER ; do
-    SURNAME1=`echo $MEMBER | cut -d ';' -f 1`
-    NAME2=`echo $MEMBER | cut -d ';' -f 2`
-    EMAIL3=`echo $MEMBER | cut -d ';' -f 3`
-    REPLY4=`echo $MEMBER | cut -d ';' -f 4`
-    TELEPHONE5=`echo $MEMBER | cut -d ';' -f 5`
-    REGISTRATION6=`echo $MEMBER | cut -d ';' -f 6`
-    TYPE7=`echo $MEMBER | cut -d ';' -f 7`
-    HOMEBASE8=`echo $MEMBER | cut -d ';' -f 8`
-    DETAILS10=`echo $MEMBER | cut -d ';' -f 10`
+IFS=';'
+while read -r SURNAME1 NAME2 EMAIL3 REPLY4 TELEPHONE5 REGISTRATION6 TYPE7 HOMEBASE8 DUMMY9 DUMMY10 DETAILS11 ; do
     if [[ $LNNO -gt 0 && "$REPLY4" == "x" ]] ; then
+        DETAILS11=`echo -n ${DETAILS11} | tr -d '\n' | tr -d '\r'` 
+        if [[ "${DETAILS11}" == "" ]]; then
+            DETAILS11='---'
+        fi
         echo -n "Processing member ${LNNO}, ${SURNAME1}, ${NAME2}"
         FILENAME_BASE=`transform_to_filename "${SURNAME1}-${NAME2}"`
         CUR_TEMP=`echo "$TEMPLATE" | sed s/###1/"$SURNAME1"/g`
         CUR_TEMP=`echo "$CUR_TEMP" | sed s/###2/"$NAME2"/g`
         CUR_TEMP=`echo "$CUR_TEMP" | sed s/###3/"$EMAIL3"/g`
         CUR_TEMP=`echo "$CUR_TEMP" | sed s/###5/"$TELEPHONE5"/g`
-        CUR_TEMP=`echo "$CUR_TEMP" | sed s/###6/"$REGISTRATION6"/g`
-        CUR_TEMP=`echo "$CUR_TEMP" | sed s/###7/"$TYPE7"/g`
+        CUR_TEMP=`echo "$CUR_TEMP" | sed s%###6%"$REGISTRATION6"%g`
+        CUR_TEMP=`echo "$CUR_TEMP" | sed s%###7%"$TYPE7"%g`
         CUR_TEMP=`echo "$CUR_TEMP" | sed s/###8/"$HOMEBASE8"/g`
-        CUR_TEMP=`echo "$CUR_TEMP" | sed s/###10/"$DETAILS10"/g`
+        CUR_TEMP=`echo "$CUR_TEMP" | sed s%###A%"$DETAILS11"%g`
         CREW1=`img_size "${FILENAME_BASE}_1.jpg"`
         CREW2=`img_size "${FILENAME_BASE}_2.jpg"`
         AIRCRAFT=`img_size "${FILENAME_BASE}_ac.jpg"`
