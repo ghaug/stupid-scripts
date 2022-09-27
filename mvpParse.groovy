@@ -29,10 +29,17 @@ public class mvpParse {
 		  println "           -i      output flight information"
 		  println "           -k out  write kml file (with Google extensions)"
 		  println "           -l out  write kml file (without Google extensions)"
+		  println "           -u int  position update interval in kml"
+		  println "           -w int  line width in kml"
+		  println "           -r      output rich kml"                  
+		  println "           -j      icons in kml"
+		  println "           -c int  color scheme in kml (0: mono, 1: color full, 2: journeys)"
+		  println "           -o      omit local flights in kml"                  
 		  println "           -s      output summary"
 		  println "           -t name output flight information in latex format"
-		  println "    file:"
-		  println "             csv file"
+		  println "           -v      output debug info on stdout"                  
+		  println "    file [file...]:"
+		  println "             csv file(s)"
 	  }
       
 
@@ -50,22 +57,31 @@ public class mvpParse {
 		  def exit = false
 		  def kmlFileName = ""
 		  def kml2FileName = ""
-		  def csvFileName = ""
+		  def csvFileNames = []
 		  def ignore = 0
                   def tex = 0
                   def texFileName = ""
+                  def debug = false
+                  def numFiles = 0
+                  def kmlStep = 2
+                  def kmlWidth = 9
+                  def kmlIcons = false
+                  def richKml = false
+                  def kmlColorScheme = 0
+                  def kmlOmitLocals = false
+                  
     	  	  args.eachWithIndex { arg, i ->
  		  if (ignore == 0) {
     		    switch (arg) {
     		    case "-s" :
-		      information = true
+		      summary = true
 		      optFound = true
     		      break
     		    case "-i" :
 		      information = true
 		      optFound = true
     		      break
-    		    case "-d" :
+                    case "-d" :
 		      dump = true
 		      optFound = true
     		      break
@@ -94,11 +110,35 @@ public class mvpParse {
     		        texFileName = args[i+1]
 		      ignore = 1
     		      break
+                    case "-v" :
+		      debug = true
+    		      break
+                    case "-u" :
+    		      if ( args.length > i + 1)
+    		        kmlStep = args[i+1] as int
+		      ignore = 1
+    		      break
+                    case "-r" :
+		      richKml = true
+    		      break
+                    case "-j" :
+		      kmlIcons = true
+    		      break
+                    case "-w" :
+    		      if ( args.length > i + 1)
+    		        kmlWidth = args[i+1] as int
+		      ignore = 1
+    		      break
+                    case "-c" :
+    		      if ( args.length > i + 1)
+    		        kmlColorScheme = args[i+1] as int
+		      ignore = 1
+    		      break
+                    case "-o" :
+		      kmlOmitLocals = true
+    		      break
 		    case { arg.substring(0,1) != "-" } :
-		      if (csvFileName != "") {
-		        throw new WrongArgException("More than one file provided")
-		      }  
-		      csvFileName = arg
+		      csvFileNames[numFiles++] = arg
 		      break;
 		    case "-h" :
 		      giveHelp()
@@ -115,18 +155,16 @@ public class mvpParse {
 
                 if (!optFound) summary = true
 		
-		if (csvFileName == "") throw new WrongArgException("No file provided")
-		def csvFile = new File(csvFileName)
-		if (csvFile == null || !csvFile.exists() || !csvFile.canRead()) throw new FileException("Cannot find " + csvFileName)
+		if (numFiles == 0) throw new WrongArgException("No file provided")
 
                 def kmlPrintStream = null
                 if (kml) {
-		  if (kmlFileName == "") throw new WrongArgException("No kml file provided")
+                  if (kmlFileName == "") throw new WrongArgException("No kml file provided")
 		  def kmlFile = new File(kmlFileName)
-		  if (kmlFile == null) throw new FileException("Cannot write " + kmlFileName)
+	          if (kmlFile == null) throw new FileException("Cannot write " + kmlFileName)
 		  kmlPrintStream = new PrintStream(kmlFile)
 		  if (kmlPrintStream == null)  throw new FileException("Cannot open " + kmlFileName)
-		}
+	        }
 
                 def texPrintStream = null
                 if (tex) {
@@ -146,23 +184,36 @@ public class mvpParse {
 		  if (kml2PrintStream == null)  throw new FileException("Cannot open " + kml2FileName)
 		}
 
-                def flight = new Flight(csvFile)
-                if (summary) flight.printSummary()
-                if (information) flight.printInformation()
-                if (dump) flight.dump()
-                if (kml) {
-                  def f2 = new Flight(flight, 2)
-                  f2.printTrack(kmlPrintStream)
+                def journey = 0
+                for (def i = 0; i < numFiles; i++) {
+
+		  def csvFile = new File(csvFileNames[i])
+		  if (csvFile == null || !csvFile.exists() || !csvFile.canRead()) throw new FileException("Cannot find " + csvFileName)
+
+                  def flight = new Flight(csvFile)
+                  if (summary) flight.printSummary()
+                  if (information) flight.printInformation()
+                  if (dump) flight.dump()
+                  if (kml) {
+                    def colorIndex = 16
+                    if (kmlColorScheme == 1) colorIndex = i % 16
+                    if (kmlColorScheme == 2) colorIndex = journey % 16                    
+                    if (!(kmlOmitLocals && flight.startsAtHome && flight.endsAtHome)) {
+                      def f2 = new Flight(flight, kmlStep)
+                      f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons)
+                      if (flight.endsAtHome) journey++
+                    }
+                  }
+                  if (kml2) {
+                    def f2 = new Flight(flight, kmlStep)
+                    f2.printLineString(kml2PrintStream)
+                  }
+                  if (tex) {
+                    flight.printTex(texPrintStream, texFileName)
+                  }
+                  if (fuelUsed) println flight.integFuel
                 }
-                if (kml2) {
-                  def f2 = new Flight(flight, 2)
-                  f2.printLineString(kml2PrintStream)
                 }
-                if (tex) {
-                  flight.printTex(texPrintStream, texFileName)
-                }
-                if (fuelUsed) println flight.integFuel
-              }
 		  catch (WrongArgException e) {
 			  println "Wrong command line argument! " + e.text()
 		  }
@@ -227,6 +278,22 @@ class Flight {
        long track
        def maxAlt
        def labels
+       double homeLat = 49.473
+       double homeLong = 8.51323
+       def startsAtHome
+       def endsAtHome
+
+       def distance(lat1, long1, lat2, long2) {
+           double phi1 = Math.toRadians(lat1)
+           double phi2 = Math.toRadians(lat2)
+           double mPhi = Math.toRadians((lat1 + lat2) / 2) 
+           double dPhi = Math.toRadians(lat2 - lat1)
+           double dLambda = Math.toRadians(long2 - long1)
+           double R = 3443.84449 - 7.01493844 * Math.sin(mPhi)
+           double a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda /2)
+           double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+           return R * c
+       }
 
        def printSummary() {
            println "Flight Number: ${fltNum}"
@@ -258,7 +325,7 @@ class Flight {
               def tof = takeOffTime.atOffset(ZoneOffset.UTC)
               def ldg = landingTime.atOffset(ZoneOffset.UTC)
               def onb = onBlock.atOffset(ZoneOffset.UTC)
-           
+
               println tof.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
               println "OFB: ${ofb.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
@@ -348,6 +415,8 @@ class Flight {
            integFuel = f.integFuel
            avgSpeed = f.avgSpeed
            dist = f.dist
+           startsAtHome = f.startsAtHome
+           endsAtHome = f.endsAtHome
            track = f.track
            maxAlt = f.maxAlt
            labels = f.labels
@@ -402,7 +471,7 @@ class Flight {
 	    	 hr_str = hr_str + Integer.toString(hours)
 	    	 zuluOffset = sign + hr_str + ":" + min_str
 
-		 def fm = new SimpleDateFormat("MM/dd/yy")
+		 def fm = new SimpleDateFormat("yyyy/MM/dd")
 		 def d = fm.parse(rawDate)
 		 def next = new Date()
 		 next.setTime(d.getTime() + (24 * 3600 * 1000))
@@ -415,14 +484,14 @@ class Flight {
 	       if (!inBody) {
 	         def m = line =~ /^Local Time: /
 		 if (m) {
-                   //print line
    		   m = line =~ /\d\d:\d\d:\d\d/
 		   assert m
 		   rawTime = m.group()
-                   m = line =~ /\d\d\d\d\/\d\d\/\d\d/
+                   m = line =~ /\d\d\d\d\/\d\d\/[\d| ]\d/
                    //print m
 		   assert m
 		   rawDate = m.group()
+                   rawDate = rawDate.replaceAll(" ", "0")
                  }
 	         m = line =~ /^Date Format: /
 		 if (m) {
@@ -548,17 +617,17 @@ class Flight {
 
 
            if ( takeOffLat != null ) {
-              double phi1 = Math.toRadians(takeOffLat)
-              double phi2 = Math.toRadians(landingLat)
-              double mPhi = Math.toRadians((takeOffLat + landingLat) / 2) 
-              double dPhi = Math.toRadians(landingLat - takeOffLat)
-              double dLambda = Math.toRadians(landingLong - takeOffLong)
-              double R = 3443.84449 - 7.01493844 * Math.sin(mPhi)
-              double a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda /2)
-              double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-              dist = R * c
+              dist = distance(takeOffLat, takeOffLong, landingLat, LandingLong)
+              startsAtHome = (distance(takeOffLat, takeOffLong, homeLat, homeLong) < 3.0)
            } else {
               dist = 0
+              startsAtHome = false
+           }
+           if ( landingLat != null ) {
+              endsAtHome = (distance(landingLat, landingLong, homeLat, homeLong) < 3.0)
+           } else {
+              dist = 0
+              endsAtHome = false
            }
 
            avgSpeed = 0.0
@@ -595,69 +664,163 @@ class Flight {
 	   }
         }
 
-         def printTrack (file) {
-	   file.println '<?xml version="1.0" encoding="UTF-8"?>'
-	   file.println '<kml xmlns="http://www.opengis.net/kml/2.2"'
-	   file.println ' xmlns:gx="http://www.google.com/kml/ext/2.2">'
-	   file.println '<Document>'
-           file.println "    <LookAt>"
-	   file.println "      <gx:TimeSpan>"
-	   file.println "        <begin>${data[0].timeStamp}</begin>"
-	   file.println "        <end>${data[data.size()-1].timeStamp}</end>"
-	   file.println "      </gx:TimeSpan>"
-	   file.println "      <longitude>${data[data.size()>>1].gps_long}</longitude>"
-	   file.println "      <latitude>${data[data.size()>>1].gps_lat}</latitude>"
-	   file.println "      <altitude>100000</altitude>"           
-	   file.println "      <range>1000000.0</range>"
-	   file.println "    </LookAt>"
-	   file.println '    <Style id="multiTrack_n">'
-	   file.println "      <LineStyle>"
-	   file.println "        <color>eeee00ee</color>"
-	   file.println "       <width>9</width>"
-	   file.println "    </LineStyle>"
-	   file.println "    </Style>"
-	   file.println '       <Style id="multiTrack_h">'
-	   file.println "      <LineStyle>"
-	   file.println "       <color>ffff00ff</color>"
-	   file.println "        <width>10</width>"
-	   file.println "      </LineStyle>"
-	   file.println "    </Style>"
-	   file.println '    <StyleMap id="multiTrack">'
-	   file.println "      <Pair>"
-	   file.println "        <key>normal</key>"
-	   file.println "        <styleUrl>#multiTrack_n</styleUrl>"
-	   file.println "      </Pair>"
-	   file.println "      <Pair>"
-	   file.println "        <key>highlight</key>"
-	   file.println "        <styleUrl>#multiTrack_h</styleUrl>"
-	   file.println "      </Pair>"
-	   file.println "    </StyleMap>"
-	   file.println '    <Schema id="schema">'
+         def printTrack (file, header, footer, index, width, rich, icons) {
+           def lColors = ["007cf5", "a7a700", "b18ff3", "b0279c", "6e546e", "5b18c2", "d18802", "177781",
+                          "00c6df", "b73a67", "da8a9f", "0051c6", "2f8b55", "555555", "4242ff", "8dffff", "ee00ee"]
+           def iColor1 = "880E4F"
+           def iColor1r = "ff4f0e88"
+           def iColor2 = "01579B"
+           def iColor2r = "ff9b5701"
+           if (header) {
+	     file.println '<?xml version="1.0" encoding="UTF-8"?>'
+	     file.println '<kml xmlns="http://www.opengis.net/kml/2.2"'
+  	     file.println ' xmlns:gx="http://www.google.com/kml/ext/2.2">'
+	     file.println '<Document>'
+             file.println "    <LookAt>"
+	     file.println "      <gx:TimeSpan>"
+	     file.println "        <begin>${data[0].timeStamp}</begin>"
+	     file.println "        <end>${data[data.size()-1].timeStamp}</end>"
+	     file.println "      </gx:TimeSpan>"
+	     file.println "      <longitude>${data[data.size()>>1].gps_long}</longitude>"
+	     file.println "      <latitude>${data[data.size()>>1].gps_lat}</latitude>"
+	     file.println "      <altitude>100000</altitude>"           
+	     file.println "      <range>1000000.0</range>"
+	     file.println "    </LookAt>"
+             if (icons) {
+               file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-normal\">"
+               file.println "      <IconStyle>"
+               file.println "        <color>${iColor1r}</color>"
+               file.println "        <scale>1</scale>"
+               file.println "        <Icon>"
+               file.println "          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>"
+               file.println "        </Icon>"
+               file.println "      </IconStyle>"        
+               file.println "      <LabelStyle>"
+               file.println "        <scale>0</scale>"
+               file.println "      </LabelStyle>"
+               file.println "      <BalloonStyle>"
+               file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+               file.println "      </BalloonStyle>"
+               file.println "    </Style>"
+               file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-highlight\">"
+               file.println "      <IconStyle>"
+               file.println "        <color>${iColor1r}</color>"
+               file.println "        <scale>1</scale>"
+               file.println "        <Icon>"
+               file.println "          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>"
+               file.println "        </Icon>"
+               file.println "      </IconStyle>"
+               file.println "      <LabelStyle>"
+               file.println "        <scale>1</scale>"
+               file.println "      </LabelStyle>"
+               file.println "      <BalloonStyle>"
+               file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+               file.println "      </BalloonStyle>"
+               file.println "    </Style>"
+               file.println "    <StyleMap id=\"icon-1591-${iColor1}-nodesc\">"
+               file.println "      <Pair>"
+               file.println "        <key>normal</key>"
+               file.println "        <styleUrl>#icon-1591-${iColor1}-nodesc-normal</styleUrl>"
+               file.println "      </Pair>"
+               file.println "      <Pair>"
+               file.println "        <key>highlight</key>"
+               file.println "        <styleUrl>#icon-1591-${iColor1}-nodesc-highlight</styleUrl>"
+               file.println "      </Pair>"
+               file.println "    </StyleMap>"
+               file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-normal\">"
+               file.println "      <IconStyle>"
+               file.println "        <color>${iColor2r}</color>"
+               file.println "        <scale>1</scale>"
+               file.println "        <Icon>"
+               file.println "          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>"
+               file.println "        </Icon>"
+               file.println "      </IconStyle>"        
+               file.println "      <LabelStyle>"
+               file.println "        <scale>0</scale>"
+               file.println "      </LabelStyle>"
+               file.println "      <BalloonStyle>"
+               file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+               file.println "      </BalloonStyle>"
+               file.println "    </Style>"
+               file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-highlight\">"
+               file.println "      <IconStyle>"
+               file.println "        <color>${iColor2r}</color>"
+               file.println "        <scale>1</scale>"
+               file.println "        <Icon>"
+               file.println "          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>"
+               file.println "        </Icon>"
+               file.println "      </IconStyle>"
+               file.println "      <LabelStyle>"
+               file.println "        <scale>1</scale>"
+               file.println "      </LabelStyle>"
+               file.println "      <BalloonStyle>"
+               file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+               file.println "      </BalloonStyle>"
+               file.println "    </Style>"
+               file.println "    <StyleMap id=\"icon-1750-${iColor2}-nodesc\">"
+               file.println "      <Pair>"
+               file.println "        <key>normal</key>"
+               file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-highlight</styleUrl>"
+               file.println "      </Pair>"
+               file.println "      <Pair>"
+               file.println "        <key>highlight</key>"
+               file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-highlight</styleUrl>"
+               file.println "      </Pair>"
+               file.println "    </StyleMap>"
+             }
+             for (def i = 0; i <= 16; ++ i) {
+	       file.println "    <Style id=\"multiTrack_n${i}\">"
+	       file.println "      <LineStyle>"
+	       file.println "        <color>${lColors[i]}</color>"
+	       file.println "        <width>${width}</width>"
+	       file.println "      </LineStyle>"
+	       file.println "    </Style>"
+	       file.println "    <Style id=\"multiTrack_h${i}\">"
+	       file.println "      <LineStyle>"
+	       file.println "        <color>${lColors[i]}</color>"
+	       file.println "        <width>${width + 1}</width>"
+	       file.println "      </LineStyle>"
+	       file.println "    </Style>"
+	       file.println "    <StyleMap id=\"multiTrack${i}\">"
+	       file.println "      <Pair>"
+	       file.println "        <key>normal</key>"
+	       file.println "        <styleUrl>#multiTrack_n${i}</styleUrl>"
+	       file.println "      </Pair>"
+	       file.println "      <Pair>"
+	       file.println "        <key>highlight</key>"
+	       file.println "        <styleUrl>#multiTrack_h${i}</styleUrl>"
+	       file.println "      </Pair>"
+	       file.println "    </StyleMap>"
+             }
+             if (rich) {
+               file.println '    <Schema id="schema">'
+               file.println '      <gx:SimpleArrayField name="time" type="string">'
+	       file.println '        <displayName>Time</displayName>'
+	       file.println '      </gx:SimpleArrayField>'
 
-           file.println '      <gx:SimpleArrayField name="time" type="string">'
-	   file.println '        <displayName>Time</displayName>'
-	   file.println '      </gx:SimpleArrayField>'
+               file.println '      <gx:SimpleArrayField name="gs" type="int">'
+	       file.println '        <displayName>GS</displayName>'
+	       file.println '      </gx:SimpleArrayField>'
 
-           file.println '      <gx:SimpleArrayField name="gs" type="int">'
-	   file.println '        <displayName>GS</displayName>'
-	   file.println '      </gx:SimpleArrayField>'
-
-	   file.println '      <gx:SimpleArrayField name="altitude" type="int">'
-	   file.println '        <displayName>Altitude</displayName>'
-	   file.println '      </gx:SimpleArrayField>'
-	   file.println '      <gx:SimpleArrayField name="hp" type="int">'
-	   file.println '        <displayName>Power</displayName>'
-	   file.println '      </gx:SimpleArrayField>'
-	   file.println '      <gx:SimpleArrayField name="rpm" type="int">'
-	   file.println '        <displayName>RPM</displayName>'
-	   file.println '      </gx:SimpleArrayField>'
-	   file.println '      <gx:SimpleArrayField name="f_flow" type="float">'
-	   file.println '        <displayName>Fuel flow</displayName>'
-	   file.println '      </gx:SimpleArrayField>'
-	   file.println '    </Schema>'
-           file.println "  <Folder>"
-	   file.println "    <Placemark>"
-	   file.println "    <styleUrl>#multiTrack</styleUrl>"
+	       file.println '      <gx:SimpleArrayField name="altitude" type="int">'
+	       file.println '        <displayName>Altitude</displayName>'
+	       file.println '      </gx:SimpleArrayField>'
+	       file.println '      <gx:SimpleArrayField name="hp" type="int">'
+	       file.println '        <displayName>Power</displayName>'
+	       file.println '      </gx:SimpleArrayField>'
+	       file.println '      <gx:SimpleArrayField name="rpm" type="int">'
+	       file.println '        <displayName>RPM</displayName>'
+	       file.println '      </gx:SimpleArrayField>'
+	       file.println '      <gx:SimpleArrayField name="f_flow" type="float">'
+	       file.println '        <displayName>Fuel flow</displayName>'
+	       file.println '      </gx:SimpleArrayField>'
+	       file.println '    </Schema>'
+             }
+             file.println "  <Folder>"
+           }
+           file.println "    <Placemark>"
+           file.println "    <name>Flt ${fltNum} ${fltStart}</name>"
+	   file.println "    <styleUrl>#multiTrack${index}</styleUrl>"
 	   file.println "      <gx:Track>"
 	   file.println "        <gx:altitudeMode>absolute</gx:altitudeMode>"
            data.each{ set ->
@@ -675,65 +838,90 @@ class Flight {
                file.println "      <gx:angles>" + set.gps_track  + "0.0 0.0 </gx:angles>"
              }
 	   }
-	   file.println "    <ExtendedData>"
-           file.println '      <SchemaData schemaUrl="#schema">'
+           if (rich) {
+	     file.println "    <ExtendedData>"
+             file.println '      <SchemaData schemaUrl="#schema">'
 
-           file.println '        <gx:SimpleArrayData name="time">'
-           data.each{ set ->
-             if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-               file.println "          <gx:value>${set.timeStamp}</gx:value>"
-             }
-	   }
-           file.println '        </gx:SimpleArrayData>'
+             file.println '        <gx:SimpleArrayData name="time">'
+             data.each{ set ->
+               if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+                 file.println "          <gx:value>${set.timeStamp}</gx:value>"
+               }
+	     }
+             file.println '        </gx:SimpleArrayData>'
+
+             file.println '        <gx:SimpleArrayData name="gs">'
+             data.each{ set ->
+               if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+                 file.println "          <gx:value>${set.gps_speed}</gx:value>"
+               }
+	     }
+             file.println '        </gx:SimpleArrayData>'
+
+             file.println '        <gx:SimpleArrayData name="altitude">'
+             data.each{ set ->
+               if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+                 file.println "          <gx:value>${set.gps_alt}</gx:value>"
+               }
+	     }
+             file.println '        </gx:SimpleArrayData>'
+
+             file.println '        <gx:SimpleArrayData name="hp">'
+             data.each{ set ->
+               if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+                 file.println "          <gx:value>${set.hp}</gx:value>"
+               }
+	     }           
+             file.println '        </gx:SimpleArrayData>'
+
+             file.println '        <gx:SimpleArrayData name="rpm">'
+             data.each{ set ->
+               if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+                 file.println "          <gx:value>${set.rpm}</gx:value>"
+               }
+	     }
+             file.println '        </gx:SimpleArrayData>'
 
 
-           file.println '        <gx:SimpleArrayData name="gs">'
-           data.each{ set ->
-             if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-               file.println "          <gx:value>${set.gps_speed}</gx:value>"
-             }
-	   }
-           file.println '        </gx:SimpleArrayData>'
-
-           file.println '        <gx:SimpleArrayData name="altitude">'
-           data.each{ set ->
-             if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-               file.println "          <gx:value>${set.gps_alt}</gx:value>"
-             }
-	   }
-           file.println '        </gx:SimpleArrayData>'
-
-           file.println '        <gx:SimpleArrayData name="hp">'
-           data.each{ set ->
-             if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-               file.println "          <gx:value>${set.hp}</gx:value>"
-             }
-	   }           
-           file.println '        </gx:SimpleArrayData>'
-
-           file.println '        <gx:SimpleArrayData name="rpm">'
-           data.each{ set ->
-             if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-               file.println "          <gx:value>${set.rpm}</gx:value>"
-             }
-	   }
-           file.println '        </gx:SimpleArrayData>'
-
-
-           file.println '        <gx:SimpleArrayData name="f_flow">'
-           data.each{ set ->
-             if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-               file.println "          <gx:value>${set.f_flow}</gx:value>"
-             }
-	   }
-           file.println '        </gx:SimpleArrayData>'
-           file.println '      </SchemaData>'
-	   file.println "    </ExtendedData>"
+             file.println '        <gx:SimpleArrayData name="f_flow">'
+             data.each{ set ->
+               if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+                 file.println "          <gx:value>${set.f_flow}</gx:value>"
+               }
+	     }
+             file.println '        </gx:SimpleArrayData>'
+             file.println '      </SchemaData>'
+	     file.println "    </ExtendedData>"
+           }
 	   file.println "      </gx:Track>"
 	   file.println "    </Placemark>"
-	   file.println "  </Folder>"
-           file.println "</Document>"
-	   file.println "</kml>"
+           if (icons && !endsAtHome) {
+             file.println "    <Placemark>"
+             file.println "     <name>AD</name>"
+             file.println "     <styleUrl>#icon-1750-${iColor2}-nodesc</styleUrl>"
+             file.println "     <Point>"
+             file.println "      <coordinates>"
+             file.println "      ${landingLong},${landingLat}"
+             file.println "      </coordinates>"
+             file.println "     </Point>"
+             file.println "    </Placemark>"
+           }
+           if (footer) {
+             if (icons) {
+               file.println "    <Placemark>"
+               file.println "     <name>Home</name>"
+               file.println "     <styleUrl>#icon-1591-${iColor1}-nodesc</styleUrl>"
+               file.println "     <Point>"
+               file.println "      <coordinates>"
+               file.println "      ${homeLong},${homeLat}"
+               file.println "      </coordinates>"
+               file.println "     </Point>"
+               file.println "    </Placemark>"
+             }
+	     file.println "  </Folder>"
+             file.println "</Document>"
+	     file.println "</kml>"
+           }
  	 }
 
          def printLineString (file) {
