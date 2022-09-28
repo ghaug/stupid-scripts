@@ -11,9 +11,9 @@ import java.time.format.DateTimeFormatter
  * @author gunter
  *
  */
-public class mvpParse {
+class mvpParse {
 
-  def giveHelp() {
+  void giveHelp() {
     println 'mvpParse [options] file'
     println '    options: '
     println '           -d      dump'
@@ -64,23 +64,23 @@ public class mvpParse {
       args.eachWithIndex { arg, i ->
         if (ignore == 0) {
           switch (arg) {
-                case '-s' :
+            case'-s' :
               summary = true
               optFound = true
               break
-                case '-i' :
+            case '-i' :
               information = true
               optFound = true
               break
-                    case '-d' :
+            case '-d' :
               dump = true
               optFound = true
               break
-                case '-f' :
+            case '-f' :
               fuelUsed = true
               optFound = true
               break
-                case '-k' :
+            case '-k' :
               kml = true
               optFound = true
               if (args.length > i + 1) {
@@ -88,7 +88,7 @@ public class mvpParse {
               }
               ignore = 1
               break
-                case '-l' :
+            case '-l' :
               kml2 = true
               optFound = true
               if (args.length > i + 1) {
@@ -96,7 +96,7 @@ public class mvpParse {
               }
               ignore = 1
               break
-                case '-t' :
+            case '-t' :
               tex = true
               optFound = true
               if (args.length > i + 1) {
@@ -104,34 +104,34 @@ public class mvpParse {
               }
               ignore = 1
               break
-                    case '-v' :
+            case '-v' :
               debug = true
               break
-                    case '-u' :
+            case '-u' :
               if (args.length > i + 1) {
                 kmlStep = args[i + 1] as int
               }
               ignore = 1
               break
-                    case '-r' :
+            case '-r' :
               richKml = true
               break
-                    case '-j' :
+            case '-j' :
               kmlIcons = true
               break
-                    case '-w' :
+            case '-w' :
               if (args.length > i + 1) {
                 kmlWidth = args[i + 1] as int
               }
               ignore = 1
               break
-                    case '-c' :
+            case '-c' :
               if (args.length > i + 1) {
                 kmlColorScheme = args[i + 1] as int
               }
               ignore = 1
               break
-                    case '-o' :
+            case '-o' :
               kmlOmitLocals = true
               break
             case { arg.substring(0, 1) != '-' } :
@@ -144,7 +144,7 @@ public class mvpParse {
             default:
               throw new WrongArgException("Don't understand " + arg + ', try -h')
           }
-                  }  else {
+        }  else {
           ignore--
         }
       }
@@ -152,7 +152,7 @@ public class mvpParse {
 
       if (!optFound) summary = true
 
-      if (numFiles == 0) throw new WrongArgException('No file provided')
+      if (numFiles == 0) throw new WrongArgException('No files provided')
 
       def kmlPrintStream = null
       if (kml) {
@@ -1043,139 +1043,139 @@ implements Comparable<TimeStampedSet> {
     timeStamp = timeSt
     values.eachWithIndex { value, index ->
       switch (index) {
-              case labels.timePos:
+        case labels.timePos:
           time = value
           break
-              case labels.mstr_wrnPos:
+        case labels.mstr_wrnPos:
           mstr_wrn = Integer.parseInt(value)
           break
-              case labels.rpmPos:
+        case labels.rpmPos:
           rpm = Integer.parseInt(value)
           break
-              case labels.f_flowPos:
+        case labels.f_flowPos:
           f_flow = Float.parseFloat(value)
           break
-              case labels.fuel_lPos:
+        case labels.fuel_lPos:
           fuel_l = Float.parseFloat(value)
           break
-              case labels.fuel_rPos:
+        case labels.fuel_rPos:
           fuel_r = Float.parseFloat(value)
           break
-              case labels.voltsPos:
+        case labels.voltsPos:
           volts = Float.parseFloat(value)
           break
-              case labels.ampsPos:
+        case labels.ampsPos:
           amps = Float.parseFloat(value)
           break
-              case labels.m_pPos:
+        case labels.m_pPos:
           m_p = Float.parseFloat(value)
           break
-              case labels.oil_pPos:
+        case labels.oil_pPos:
           oil_p = Integer.parseInt(value)
           break
-              case labels.egt1Pos:
+        case labels.egt1Pos:
           egt1 = Integer.parseInt(value)
           break
-              case labels.egt2Pos:
+        case labels.egt2Pos:
           egt2 = Integer.parseInt(value)
           break
-              case labels.egt3Pos:
+        case labels.egt3Pos:
           egt3 = Integer.parseInt(value)
           break
-              case labels.egt4Pos:
+        case labels.egt4Pos:
           egt4 = Integer.parseInt(value)
           break
-              case labels.egt5Pos:
+        case labels.egt5Pos:
           egt5 = Integer.parseInt(value)
           break
-              case labels.egt6Pos:
+        case labels.egt6Pos:
           egt6 = Integer.parseInt(value)
           break
-              case labels.oil_tPos:
+        case labels.oil_tPos:
           oil_t = Integer.parseInt(value)
           break
-              case labels.oatPos:
+        case labels.oatPos:
           oat = Integer.parseInt(value)
           break
-              case labels.titPos:
+        case labels.titPos:
           tit = Integer.parseInt(value)
           break
-              case labels.cht1Pos:
+        case labels.cht1Pos:
           cht1 = Integer.parseInt(value)
           break
-              case labels.cht2Pos:
+        case labels.cht2Pos:
           cht2 = Integer.parseInt(value)
           break
-              case labels.cht3Pos:
+        case labels.cht3Pos:
           cht3 = Integer.parseInt(value)
           break
-              case labels.cht4Pos:
+        case labels.cht4Pos:
           cht4 = Integer.parseInt(value)
           break
-              case labels.cht5Pos:
+        case labels.cht5Pos:
           cht5 = Integer.parseInt(value)
           break
-              case labels.cht6Pos:
+        case labels.cht6Pos:
           cht6 = Integer.parseInt(value)
           break
-              case labels.t_comp1Pos:
+        case labels.t_comp1Pos:
           t_comp1 = value
           break
-              case labels.t_comp2Pos:
+        case labels.t_comp2Pos:
           t_comp2 = value
           break
-              case labels.hpPos:
+        case labels.hpPos:
           hp = Integer.parseInt(value)
           break
-              case labels.s_coolPos:
+        case labels.s_coolPos:
           s_cool = Integer.parseInt(value)
           break
-              case labels.est_fuelPos:
+        case labels.est_fuelPos:
           est_fuel = Float.parseFloat(value)
           break
-              case labels.flt_tmPos:
+        case labels.flt_tmPos:
           flt_tm = Float.parseFloat(value)
           break
-              case labels.eng_hrsPos:
+        case labels.eng_hrsPos:
           eng_hrs = Float.parseFloat(value)
           break
-              case labels.tach_tmPos:
+        case labels.tach_tmPos:
           tach_tm = Float.parseFloat(value)
           break
-              case labels.gps_utcPos:
+        case labels.gps_utcPos:
           gps_utc = value
           break
-              case labels.gps_wayptPos:
+        case labels.gps_wayptPos:
           gps_waypt = value
           break
-              case labels.gps_latPos:
+        case labels.gps_latPos:
           gps_lat = parseCoord(value)
           break
-              case labels.gps_longPos:
+        case labels.gps_longPos:
           gps_long = parseCoord(value)
           break
-              case labels.gps_speedPos:
+        case labels.gps_speedPos:
           if (value =~ /---/) gps_speed = -1 else gps_speed = Integer.parseInt(value)
           break
-              case labels.gps_altPos:
+        case labels.gps_altPos:
           if (value =~ /---/) gps_alt = -1 else gps_alt = Integer.parseInt(value)
           break
-              case labels.gps_trackPos:
+        case labels.gps_trackPos:
           if (value =~ /---/) gps_track = Float.NaN else gps_track = Float.parseFloat(value)
           break
-              case labels.gps_qltyPos:
+        case labels.gps_qltyPos:
           gps_qlty = Integer.parseInt(value)
           break
-              case labels.gps_numsatPos:
+        case labels.gps_numsatPos:
           gps_numsat = Integer.parseInt(value)
           break
-              case labels.auxin1Pos:
+        case labels.auxin1Pos:
           auxin1 = Integer.parseInt(value)
           break
-              case labels.auxin2Pos:
+        case labels.auxin2Pos:
           auxin2 = Integer.parseInt(value)
           break
-              case labels.auxin3Pos:
+        case labels.auxin3Pos:
           auxin3 = Integer.parseInt(value)
           break
       }
