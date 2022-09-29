@@ -639,7 +639,7 @@ class Flight {
       avgSpeed = avgSpeed / (lastFltIndex - firstFltIndex + 1)
 
       track = Math.round(avgSpeed * (flightDuration.toMillis() / 3600000))
-           } else {
+    } else {
       avgSpeed = 0
       track = 0
     }
