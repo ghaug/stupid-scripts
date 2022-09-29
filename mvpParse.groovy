@@ -11,7 +11,7 @@ import java.time.format.DateTimeFormatter
  * @author gunter
  *
  */
-class mvpParse {
+class MvpParse {
 
   void giveHelp() {
     println 'mvpParse [options] file'
@@ -105,7 +105,10 @@ class mvpParse {
               ignore = 1
               break
             case '-v' :
-              debug = true
+              if (args.length > i + 1) {
+                Globals.debug = args[i + 1] as int
+              }
+              ignore = 1
               break
             case '-u' :
               if (args.length > i + 1) {
@@ -210,7 +213,7 @@ class mvpParse {
         if (fuelUsed) println flight.integFuel
       }
     }
-          catch (WrongArgException e) {
+    catch (WrongArgException e) {
       println 'Wrong command line argument! ' + e.text()
           }
           catch (FileException e) {
@@ -218,14 +221,18 @@ class mvpParse {
           }
           catch (Throwable t) {
       throw t
-          }
+    }
   }
   // main, not much to do here
   static main(args) {
-    def mvpParse = new mvpParse()
+    def mvpParse = new MvpParse()
     mvpParse.run(args)
   }
 
+}
+
+class Globals {
+  static debug = 0
 }
 
 class WrongArgException
@@ -233,7 +240,6 @@ extends Exception {
   String txt
   WrongArgException(String s) { super(s); txt = s }
   String text() { return txt }
-
 }
 
 class FileException
@@ -241,7 +247,6 @@ extends Exception {
   String txt
   FileException(String s) { super(s); txt = s  }
   String text() { return txt }
-
 }
 
 class Flight {
@@ -523,9 +528,9 @@ class Flight {
         try {
           timeStampSet = new TimeStampedSet(timeStamp, values, labels)
         }
-         catch (java.lang.NumberFormatException e) {
+        catch (java.lang.NumberFormatException e) {
           timeStampSet = null
-         }
+        }
         if (timeStampSet != null) {
           data << timeStampSet
           lines++
@@ -547,17 +552,17 @@ class Flight {
     data.each { set ->
       if (firstWithGpsTime == null && set.gps_lat != Double.NaN && set.gps_long != Double.NaN) {
         firstWithGpsTime = set.timeStamp
-             } else if (firstWithGpsTime != null && Duration.between(firstWithGpsTime, set.timeStamp).getSeconds() > 60 &&
-                        firstLat == -1000.0 && set.gps_lat != Double.NaN && set.gps_long != Double.NaN) {
+      } else if (firstWithGpsTime != null && Duration.between(firstWithGpsTime, set.timeStamp).getSeconds() > 60 &&
+        firstLat == -1000.0 && set.gps_lat != Double.NaN && set.gps_long != Double.NaN) {
         firstLat = set.gps_lat
         firstLong = set.gps_long
-             } else if (offBlock == null && firstLat != -1000.0 && set.gps_lat != Double.NaN && set.gps_long != Double.NaN &&
-                        (Math.abs(set.gps_long - firstLong) >= 0.001 || Math.abs(set.gps_long - firstLong) >= 0.001)) {
+      } else if (offBlock == null && firstLat != -1000.0 && set.gps_lat != Double.NaN && set.gps_long != Double.NaN &&
+                 distance(set.gps_lat, set.gps_long, firstLat, firstLong) > 0.010799) {
         offBlock = set.timeStamp
         offBlockLat = set.gps_lat
         offBlockLong = set.gps_long
         offBlockAlt = set.gps_alt
-                        }
+      }
     }
     onBlock = null
     def lastLat = -1000.0
@@ -566,13 +571,13 @@ class Flight {
       if (lastLong == -1000.0 && data[i].gps_lat != Double.NaN && data[i].gps_long != Double.NaN) {
         lastLong = data[i].gps_long
         lastLat = data[i].gps_lat
-             } else if (onBlock == null && lastLong != -1000.0 && data[i].gps_lat != Double.NaN && data[i].gps_long != Double.NaN &&
-                        (Math.abs(data[i].gps_long - lastLong) >= 0.001 || Math.abs(data[i].gps_long - lastLong) >= 0.001)) {
+      } else if (onBlock == null && lastLong != -1000.0 && data[i].gps_lat != Double.NaN && data[i].gps_long != Double.NaN &&
+                        distance(data[i].gps_lat, data[i].gps_long, lastLat, lastLong) > 0.010799) {
         onBlock = data[i].timeStamp
         onBlockLat = data[i].gps_lat
         onBlockLong = data[i].gps_long
         onBlockAlt = data[i].gps_alt
-                        }
+      }
     }
     if (onBlock != null && offBlock != null) {
       blockDuration = Duration.between(offBlock, onBlock)
@@ -613,13 +618,13 @@ class Flight {
     if (takeOffLat != null) {
       dist = distance(takeOffLat, takeOffLong, landingLat, LandingLong)
       startsAtHome = (distance(takeOffLat, takeOffLong, homeLat, homeLong) < 3.0)
-           } else {
+    } else {
       dist = 0
       startsAtHome = false
     }
     if (landingLat != null) {
       endsAtHome = (distance(landingLat, landingLong, homeLat, homeLong) < 3.0)
-           } else {
+    } else {
       dist = 0
       endsAtHome = false
     }
@@ -1393,10 +1398,10 @@ implements Comparable<TimeStampedSet> {
 
 class Labels {
 
-      // TIME,MSTR_WRN,RPM;RPM,F.FLOW;GPH,FUEL L;GAL,FUEL R;GAL,VOLTS;V,AMPS;A,M.P.;HG,OIL P;PSI,
-      // EGT 1;*F,EGT 2;*F,EGT 3;*F,EGT 4;*F,EGT 5;*F,EGT 6;*F,OIL T;*F,OAT;*F,TIT;*F,CHT 1;*F,CHT 2;*F,CHT 3;*F,CHT 4;*F,CHT 5;*F,CHT 6;*F,
-      // T.COMP1;,T.COMP2;,HP;%,S.COOL;*F/M,EST FUEL;GAL,FLT TM;MIN,ENG HRS;HRS,TACH TM;HRS,GPS-UTC,GPS-WAYPT,GPS-LAT,GPS-LONG,GPS-SPEED;KTS,
-      // GPS-ALT;F,GPS-TRACK;DEG,GPS-QLTY,GPS-NumSat,AUXIN1,AUXIN2,AUXIN3,
+  // TIME,MSTR_WRN,RPM;RPM,F.FLOW;GPH,FUEL L;GAL,FUEL R;GAL,VOLTS;V,AMPS;A,M.P.;HG,OIL P;PSI,
+  // EGT 1;*F,EGT 2;*F,EGT 3;*F,EGT 4;*F,EGT 5;*F,EGT 6;*F,OIL T;*F,OAT;*F,TIT;*F,CHT 1;*F,CHT 2;*F,CHT 3;*F,CHT 4;*F,CHT 5;*F,CHT 6;*F,
+  // T.COMP1;,T.COMP2;,HP;%,S.COOL;*F/M,EST FUEL;GAL,FLT TM;MIN,ENG HRS;HRS,TACH TM;HRS,GPS-UTC,GPS-WAYPT,GPS-LAT,GPS-LONG,GPS-SPEED;KTS,
+  // GPS-ALT;F,GPS-TRACK;DEG,GPS-QLTY,GPS-NumSat,AUXIN1,AUXIN2,AUXIN3,
 
   def timePos
   def mstr_wrnPos
