@@ -26,6 +26,7 @@ class MvpParse {
     println '           -w int  line width in kml'
     println '           -r      output rich kml'
     println '           -j      icons in kml'
+    println '           -e      optimize kml for google earth'
     println '           -c int  color scheme in kml (0: mono, 1: color full, 2: journeys)'
     println '           -o      omit local flights in kml'
     println '           -s      output summary'
@@ -56,6 +57,7 @@ class MvpParse {
       def numFiles = 0
       def kmlStep = 2
       def kmlWidth = 9
+      def kmlForGE = false
       def kmlIcons = false
       def richKml = false
       def kmlColorScheme = 0
@@ -122,6 +124,9 @@ class MvpParse {
             case '-j' :
               kmlIcons = true
               break
+            case '-e' :
+              kmlForGE = true
+              break
             case '-w' :
               if (args.length > i + 1) {
                 kmlWidth = args[i + 1] as int
@@ -147,7 +152,7 @@ class MvpParse {
             default:
               throw new WrongArgException("Don't understand " + arg + ', try -h')
           }
-        }  else {
+        } else {
           ignore--
         }
       }
@@ -199,7 +204,7 @@ class MvpParse {
           if (kmlColorScheme == 2) colorIndex = journey % 16
           if (!(kmlOmitLocals && flight.startsAtHome && flight.endsAtHome)) {
             def f2 = new Flight(flight, kmlStep)
-            f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons)
+            f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons, kmlForGE)
             if (flight.endsAtHome) journey++
           }
         }
@@ -215,11 +220,11 @@ class MvpParse {
     }
     catch (WrongArgException e) {
       println 'Wrong command line argument! ' + e.text()
-          }
-          catch (FileException e) {
+    }
+    catch (FileException e) {
       println e.text()
-          }
-          catch (Throwable t) {
+    }
+    catch (Throwable t) {
       throw t
     }
   }
@@ -515,7 +520,7 @@ class Flight {
         if (m) {
           labels = new Labels(line)
         }
-               } else {
+      } else {
         def values = []
         values = line.split(/,/)
         def lineTime = OffsetTime.parse(values[0] + '+00:00')
@@ -663,9 +668,9 @@ class Flight {
     }
   }
 
-  def printTrack (file, header, footer, index, width, rich, icons) {
-    def lColors = ['007cf5', 'a7a700', 'b18ff3', 'b0279c', '6e546e', '5b18c2', 'd18802', '177781',
-                          '00c6df', 'b73a67', 'da8a9f', '0051c6', '2f8b55', '555555', '4242ff', '8dffff', 'ee00ee']
+  def printTrack (file, header, footer, index, width, rich, icons, forGE) {
+    def lColors = ['ff007cf5', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff6e546e', 'ff5b18c2', 'ffd18802', 'ff177781',
+                   'ff00c6df', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff555555', 'ff4242ff', 'ff8dffff', 'ffee00ee']
     def iColor1 = '880E4F'
     def iColor1r = 'ff4f0e88'
     def iColor2 = '01579B'
@@ -691,7 +696,7 @@ class Flight {
         file.println "        <color>${iColor1r}</color>"
         file.println '        <scale>1</scale>'
         file.println '        <Icon>'
-        file.println '          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>'
+        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
         file.println '        </Icon>'
         file.println '      </IconStyle>'
         file.println '      <LabelStyle>'
@@ -706,7 +711,7 @@ class Flight {
         file.println "        <color>${iColor1r}</color>"
         file.println '        <scale>1</scale>'
         file.println '        <Icon>'
-        file.println '          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>'
+        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
         file.println '        </Icon>'
         file.println '      </IconStyle>'
         file.println '      <LabelStyle>'
@@ -731,7 +736,7 @@ class Flight {
         file.println "        <color>${iColor2r}</color>"
         file.println '        <scale>1</scale>'
         file.println '        <Icon>'
-        file.println '          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>'
+        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
         file.println '        </Icon>'
         file.println '      </IconStyle>'
         file.println '      <LabelStyle>'
@@ -746,7 +751,7 @@ class Flight {
         file.println "        <color>${iColor2r}</color>"
         file.println '        <scale>1</scale>'
         file.println '        <Icon>'
-        file.println '          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>'
+        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
         file.println '        </Icon>'
         file.println '      </IconStyle>'
         file.println '      <LabelStyle>'
@@ -759,7 +764,7 @@ class Flight {
         file.println "    <StyleMap id=\"icon-1750-${iColor2}-nodesc\">"
         file.println '      <Pair>'
         file.println '        <key>normal</key>'
-        file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-highlight</styleUrl>"
+        file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-normal</styleUrl>"
         file.println '      </Pair>'
         file.println '      <Pair>'
         file.println '        <key>highlight</key>'
@@ -769,12 +774,20 @@ class Flight {
       }
       for (def i = 0; i <= 16; ++ i) {
         file.println "    <Style id=\"multiTrack_n${i}\">"
+        file.println '      <IconStyle>'
+        file.println '      	<Icon>'
+        file.println '      	</Icon>'
+        file.println '      </IconStyle>'
         file.println '      <LineStyle>'
         file.println "        <color>${lColors[i]}</color>"
         file.println "        <width>${width}</width>"
         file.println '      </LineStyle>'
         file.println '    </Style>'
         file.println "    <Style id=\"multiTrack_h${i}\">"
+        file.println '      <IconStyle>'
+        file.println '      	<Icon>'
+        file.println '      	</Icon>'
+        file.println '      </IconStyle>'
         file.println '      <LineStyle>'
         file.println "        <color>${lColors[i]}</color>"
         file.println "        <width>${width + 1}</width>"
@@ -818,7 +831,9 @@ class Flight {
       file.println '  <Folder>'
     }
     file.println '    <Placemark>'
-    file.println "    <name>Flt ${fltNum} ${fltStart}</name>"
+    if (!forGE) {
+      file.println "    <name>Flt ${fltNum} ${fltStart}</name>"
+    }
     file.println "    <styleUrl>#multiTrack${index}</styleUrl>"
     file.println '      <gx:Track>'
     file.println '        <gx:altitudeMode>absolute</gx:altitudeMode>'
@@ -895,7 +910,9 @@ class Flight {
     file.println '    </Placemark>'
     if (icons && !endsAtHome) {
       file.println '    <Placemark>'
-      file.println '     <name>AD</name>'
+      if (!forGE) {
+        file.println '     <name>AD</name>'
+      }
       file.println "     <styleUrl>#icon-1750-${iColor2}-nodesc</styleUrl>"
       file.println '     <Point>'
       file.println '      <coordinates>'
@@ -1329,12 +1346,12 @@ implements Comparable<TimeStampedSet> {
       c = deg + sec / 60.0
       if (fields[0] == 'S' || fields[0] == 'W') c = -c
     }
-      catch (java.lang.NumberFormatException e) {
+    catch (java.lang.NumberFormatException e) {
       c = Double.NaN
-      }
-      catch (java.lang.ArrayIndexOutOfBoundsException e) {
+    }
+    catch (java.lang.ArrayIndexOutOfBoundsException e) {
       c = Double.NaN
-      }
+    }
     return c
   }
 
