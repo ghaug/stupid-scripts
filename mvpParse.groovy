@@ -21,7 +21,7 @@ class MvpParse {
     println '           -h      show this and exit'
     println '           -i      output flight information'
     println '           -k out  write kml file (with Google extensions)'
-    println '           -l out  write kml file (without Google extensions)'
+    println '           -l out  write kml file (without Google extensions, depricated)'
     println '           -u int  position update interval in kml'
     println '           -w int  line width in kml'
     println '           -r      output rich kml'
@@ -29,7 +29,7 @@ class MvpParse {
     println '           -e      optimize kml for google earth'
     println '           -c int  color scheme in kml (0: mono, 1: color full, 2: journeys)'
     println '           -o      omit local flights in kml'
-    println '           -s      output summary'
+    println '           -s      output summary of internal data'
     println '           -t name output flight information in latex format'
     println '           -v      output debug info on stdout'
     println '    file [file...]:'
@@ -190,13 +190,26 @@ class MvpParse {
       }
 
       def journey = 0
+      def fltTime = Duration.ZERO
+      def blkTime = Duration.ZERO
+      def track = 0
+      def fuel = 0.0
       for (def i = 0; i < numFiles; i++) {
         def csvFile = new File(csvFileNames[i])
         if (csvFile == null || !csvFile.exists() || !csvFile.canRead()) throw new FileException('Cannot find ' + csvFileName)
 
         def flight = new Flight(csvFile)
+
+        fltTime = fltTime.plus(flight.flightDuration)
+        blkTime = blkTime.plus(flight.blockDuration)
+        track += flight.track
+        fuel += flight.integFuel
+
         if (summary) flight.printSummary()
-        if (information) flight.printInformation()
+        if (information) {
+          flight.printInformation()
+          if (i < (numFiles -1)) println "-------------------"
+        }
         if (dump) flight.dump()
         if (kml) {
           def colorIndex = 16
@@ -217,6 +230,20 @@ class MvpParse {
         }
         if (fuelUsed) println flight.integFuel
       }
+      if (information && numFiles > 1) {
+        println "-------------------"
+        println "Accumulated:"
+        def h = fltTime.toHours()
+        def minD = fltTime.minusHours(h)
+        def m = minD.toMinutes()
+        println "FltTime: ${h}:${String.format('%02d', new Long(m))}"
+        h = blkTime.toHours()
+        minD = blkTime.minusHours(h)
+        m = minD.toMinutes()
+        println "BlkTime: ${h}:${String.format('%02d', new Long(m))}"
+        println "Track: ${track}NM"
+        println "Fuel: ${String.format(Locale.US, '%.1f', new Double(fuel))}USG"
+      }
     }
     catch (WrongArgException e) {
       println 'Wrong command line argument! ' + e.text()
@@ -227,7 +254,7 @@ class MvpParse {
     catch (Throwable t) {
       throw t
     }
-  }
+}
   // main, not much to do here
   static main(args) {
     def mvpParse = new MvpParse()
@@ -327,13 +354,14 @@ class Flight {
   }
 
   def printInformation() {
+    println "Flight Number: ${fltNum}"
     if (offBlock != null && takeOffTime != null && landingTime != null && onBlock != null && flightDuration != null && blockDuration != null) {
       def ofb = offBlock.atOffset(ZoneOffset.UTC)
       def tof = takeOffTime.atOffset(ZoneOffset.UTC)
       def ldg = landingTime.atOffset(ZoneOffset.UTC)
       def onb = onBlock.atOffset(ZoneOffset.UTC)
 
-      println tof.format(DateTimeFormatter.ISO_LOCAL_DATE)
+      println "Date: ${ofb.format(DateTimeFormatter.ISO_LOCAL_DATE)}"
 
       println "OFB: ${ofb.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
       println "T/O: ${tof.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
@@ -460,33 +488,58 @@ class Flight {
     def inBody = false
     f.eachLine() { line ->
       if (!inBody && line =~ /^\d\d:\d\d:\d\d,/) {
+        // First line of the body, lets process the data read in the header
         inBody = true
 
-        def date_local = OffsetTime.parse("${rawTime}+00:00")
-        def date_utc = OffsetTime.parse("${rawZulu}+00:00")
-        def diff = Duration.between(date_utc, date_local)
-        def sign = diff.isNegative() ? '-' : '+'
-        diff = diff.abs()
-        int minutes = diff.toMinutes()
-        int hours = minutes / 60
-        minutes = minutes - 60 * hours
-        def min_str = minutes < 10 ? '0' : ''
-        min_str = min_str + Integer.toString(minutes)
-        def hr_str = hours < 10 ? '0' : ''
-        hr_str = hr_str + Integer.toString(hours)
-        zuluOffset = sign + hr_str + ':' + min_str
 
+        // Get the start time, note that time in header may be after first logging time which is the start time
+        def headerTimeA = rawTime.split(/:/)
+        def headerTime = (headerTimeA[0] as int) * 3600 + (headerTimeA[1] as int) * 60 + (headerTimeA[2] as int)
+        def rawFirstTime = line.split(/,/)[0]
+        def firstTimeA = rawFirstTime.split(/:/)
+        def firstTime = (firstTimeA[0] as int) * 3600 + (firstTimeA[1] as int) * 60 + (firstTimeA[2] as int)
+        startTime = OffsetTime.parse(rawFirstTime + '+00:00')
+
+        // Calculate Zulu offset
+        def zuluTimeA = rawZulu.split(/:/)
+        def zuluTime = (zuluTimeA[0] as int) * 3600 + (zuluTimeA[1] as int) * 60 + (zuluTimeA[2] as int)
+        def zoneDiff = headerTime - zuluTime
+        if (zoneDiff < -(16 * 3600)) {
+          zoneDiff += (24 * 3600)
+        } else if (zoneDiff > (16 * 3600)) {
+          zoneDiff -= (24 * 3600)
+        }
+        def zoneDiffSign = zoneDiff < 0 ? '-' : '+'
+        int zoneDiffMinutes = Math.round(Math.abs((zoneDiff as float) / 60.0f))
+        int zoneDiffHours = zoneDiffMinutes / 60
+        zoneDiffMinutes = zoneDiffMinutes - 60 * zoneDiffHours
+        def min_str = zoneDiffMinutes < 10 ? '0' : ''
+        min_str = min_str + Integer.toString(zoneDiffMinutes)
+        def hr_str = zoneDiffHours < 10 ? '0' : ''
+        hr_str = hr_str + Integer.toString(zoneDiffHours)
+        zuluOffset = zoneDiffSign + hr_str + ':' + min_str
+
+        // Determin date of start time
         def fm = new SimpleDateFormat('yyyy/MM/dd')
         def d = fm.parse(rawDate)
-        def next = new Date()
-        next.setTime(d.getTime() + (24 * 3600 * 1000))
-        fm = new SimpleDateFormat('yyyy-MM-dd')
-        date = fm.format(d)
-        nextDate = fm.format(next)
-        startTime = OffsetTime.parse(rawTime + '+00:00')
-        fltStart = OffsetDateTime.parse(date + 'T' + rawTime + zuluOffset).toInstant()
+        if ((firstTime - headerTime) > 23 * 3600) {
+          def prev = new Date()
+          prev.setTime(d.getTime() - (24 * 3600 * 1000))
+          fm = new SimpleDateFormat('yyyy-MM-dd')
+          date = fm.format(prev)
+          nextDate = fm.format(d)
+        }
+        else {
+          def next = new Date()
+          next.setTime(d.getTime() + (24 * 3600 * 1000))
+          fm = new SimpleDateFormat('yyyy-MM-dd')
+          date = fm.format(d)
+          nextDate = fm.format(next)
+        }
+        fltStart = OffsetDateTime.parse(date + 'T' + rawFirstTime + zuluOffset).toInstant()
       }
       if (!inBody) {
+        // In header, collect data
         def m = line =~ /^Local Time: /
         if (m) {
           m = line =~ /\d\d:\d\d:\d\d/
@@ -521,6 +574,7 @@ class Flight {
           labels = new Labels(line)
         }
       } else {
+        // In body
         def values = []
         values = line.split(/,/)
         def lineTime = OffsetTime.parse(values[0] + '+00:00')
@@ -543,18 +597,18 @@ class Flight {
       }
     }
     data.trimToSize()
-    data.each {
-      if (it.gps_waypt == 'GARMN') {
-        it.gps_lat = Double.NaN
-        it.gps_long = Double.NaN
-      }
-    }
 
     def firstWithGpsTime = null
     def firstLat = -1000.0
     def firstLong = -1000.0
     offBlock = null
-    data.each { set ->
+    def ofbIndex = -1
+    def onbIndex = -1
+    data.eachWithIndex { set, i ->
+      if (set.gps_waypt == 'GARMN') {
+        set.gps_lat = Double.NaN
+        set.gps_long = Double.NaN
+      }
       if (firstWithGpsTime == null && set.gps_lat != Double.NaN && set.gps_long != Double.NaN) {
         firstWithGpsTime = set.timeStamp
       } else if (firstWithGpsTime != null && Duration.between(firstWithGpsTime, set.timeStamp).getSeconds() > 60 &&
@@ -567,6 +621,7 @@ class Flight {
         offBlockLat = set.gps_lat
         offBlockLong = set.gps_long
         offBlockAlt = set.gps_alt
+        ofbIndex = i
       }
     }
     onBlock = null
@@ -582,10 +637,12 @@ class Flight {
         onBlockLat = data[i].gps_lat
         onBlockLong = data[i].gps_long
         onBlockAlt = data[i].gps_alt
+        onbIndex = i;
       }
     }
     if (onBlock != null && offBlock != null) {
       blockDuration = Duration.between(offBlock, onBlock)
+      fuelDiff = data[ofbIndex].est_fuel - data[onbIndex].est_fuel
     }
     def data2 = []
     for (int i = 0 ; i < lines ;) {
@@ -651,11 +708,12 @@ class Flight {
 
     loggingDuration = Duration.between(this.fltStart, data[data.size() - 1].timeStamp)
 
-    fuelDiff =  data[data.size() - 1].est_fuel - data[0].est_fuel
     integFuel = 0.0
     data.eachWithIndex { set, i ->
       if (i >= 1) {
         double time = Duration.between(data[i - 1].timeStamp, set.timeStamp).toMillis() / (1000.0 * 3600.0)
+        if (time < 0) println "time: ${time}"
+        if (set.f_flow < 0) println "set.f_flow: ${set.f_flow}"
         integFuel += set.f_flow * time
       }
     }
