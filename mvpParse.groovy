@@ -20,15 +20,15 @@ class MvpParse {
     println '           -f      print fuel used'
     println '           -h      show this and exit'
     println '           -i      output flight information'
-    println '           -k out  write kml file (with Google extensions)'
-    println '           -l out  write kml file (without Google extensions, depricated)'
+    println '           -k out  write kml file'
+    println '           -c int  color scheme in kml (0: mono, 1: color full, 2: journeys)'
+    println '           -e      optimize kml for Google Earth'
+    println '           -j      icons in kml'
+    println '           -m      mix up colors in kml'
+    println '           -o      omit local flights in kml'
+    println '           -r      output rich kml (for interactive use of GE)'
     println '           -u int  position update interval in kml'
     println '           -w int  line width in kml'
-    println '           -r      output rich kml'
-    println '           -j      icons in kml'
-    println '           -e      optimize kml for google earth'
-    println '           -c int  color scheme in kml (0: mono, 1: color full, 2: journeys)'
-    println '           -o      omit local flights in kml'
     println '           -s      output summary of internal data'
     println '           -t name output flight information in latex format'
     println '           -v      output debug info on stdout'
@@ -42,14 +42,12 @@ class MvpParse {
       // first of all parse command line arguments
       def optFound = false
       def kml = false
-      def kml2 = false
       def dump = false
       def summary = false
       def fuelUsed = false
       def information = false
       def exit = false
       def kmlFileName = ''
-      def kml2FileName = ''
       def csvFileNames = []
       def ignore = 0
       def tex = 0
@@ -62,6 +60,8 @@ class MvpParse {
       def richKml = false
       def kmlColorScheme = 0
       def kmlOmitLocals = false
+      def mixColors = false
+      def deck = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 
       args.eachWithIndex { arg, i ->
         if (ignore == 0) {
@@ -90,14 +90,6 @@ class MvpParse {
               }
               ignore = 1
               break
-            case '-l' :
-              kml2 = true
-              optFound = true
-              if (args.length > i + 1) {
-                kml2FileName = args[i + 1]
-              }
-              ignore = 1
-              break
             case '-t' :
               tex = true
               optFound = true
@@ -123,6 +115,9 @@ class MvpParse {
               break
             case '-j' :
               kmlIcons = true
+              break
+            case '-m' :
+              mixColors = true
               break
             case '-e' :
               kmlForGE = true
@@ -158,6 +153,16 @@ class MvpParse {
       }
       if (exit) return
 
+      def rnd = new Random()
+      if (mixColors) {
+        for (def j = 0; j< 16; ++j) {
+          def r = rnd.nextInt(16)
+          def t = deck[j]
+          deck[j] = deck[r]
+          deck[r] = t
+        }
+      }
+
       if (!optFound) summary = true
 
       if (numFiles == 0) throw new WrongArgException('No files provided')
@@ -178,15 +183,6 @@ class MvpParse {
         if (texFile == null) throw new FileException('Cannot write ' + texFileName + '.tex')
         texPrintStream = new PrintStream(texFile)
         if (texPrintStream == null)  throw new FileException('Cannot open ' + texFileName)
-      }
-
-      def kml2PrintStream = null
-      if (kml2) {
-        if (kml2FileName == '') throw new WrongArgException('No kml file provided')
-        def kml2File = new File(kml2FileName)
-        if (kml2File == null) throw new FileException('Cannot write ' + kml2FileName)
-        kml2PrintStream = new PrintStream(kml2File)
-        if (kml2PrintStream == null)  throw new FileException('Cannot open ' + kml2FileName)
       }
 
       def journey = 0
@@ -215,15 +211,13 @@ class MvpParse {
           def colorIndex = 16
           if (kmlColorScheme == 1) colorIndex = i % 16
           if (kmlColorScheme == 2) colorIndex = journey % 16
-          if (!(kmlOmitLocals && flight.startsAtHome && flight.endsAtHome)) {
+          colorIndex = deck[colorIndex]
+          if (!kmlOmitLocals || !(flight.startsAtHome && flight.endsAtHome) && flight.flightDuration.getSeconds() > 180 ) {
             def f2 = new Flight(flight, kmlStep)
             f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons, kmlForGE)
-            if (flight.endsAtHome) journey++
+            if (flight.endsAtHome && !mixColors) journey++
+            if (flight.endsAtHome && mixColors) journey += (rnd.nextInt(16) + 1)
           }
-        }
-        if (kml2) {
-          def f2 = new Flight(flight, kmlStep)
-          f2.printLineString(kml2PrintStream)
         }
         if (tex) {
           flight.printTex(texPrintStream, texFileName)
@@ -727,8 +721,16 @@ class Flight {
   }
 
   def printTrack (file, header, footer, index, width, rich, icons, forGE) {
-    def lColors = ['ff007cf5', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff6e546e', 'ff5b18c2', 'ffd18802', 'ff177781',
-                   'ff00c6df', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff555555', 'ff4242ff', 'ff8dffff', 'ffee00ee']
+    def lColors_w = ['ff007cf5', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff7e649e', 'ff7b18d2', 'ffd18802', 'ff177781',
+                     'ff00d6ef', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff444444', 'ff4242ff', 'ff8dffff', 'ffee00ee']
+    def lColors_e = ['ff007cf5', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'fff01cce', 'ff5b18c2', 'ffd18802', 'ff74b7e9',
+                     'ff00c6df', 'ffea4882', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffee00ee']
+    def lColors
+    if (forGE) {
+      lColors = lColors_e
+    } else {
+      lColors = lColors_w
+    }
     def iColor1 = '880E4F'
     def iColor1r = 'ff4f0e88'
     def iColor2 = '01579B'
@@ -890,27 +892,40 @@ class Flight {
     }
     file.println '    <Placemark>'
     if (!forGE) {
-      file.println "    <name>Flt ${fltNum} ${fltStart}</name>"
+      file.println "    <name>I ${index} Flt ${fltNum} ${fltStart}</name>"
     }
     file.println "    <styleUrl>#multiTrack${index}</styleUrl>"
-    file.println '      <gx:Track>'
-    file.println '        <gx:altitudeMode>absolute</gx:altitudeMode>'
-    data.each { set ->
-      if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-        file.println "        <gx:when>${set.timeStamp}</gx:when>"
+    if (!rich) {
+      file.println '      <LineString>'
+      file.println '        <extrude>0</extrude>'
+      file.println '        <tessellate>0</tessellate>'
+      file.println '        <altitudeMode>absolute</altitudeMode>'
+      file.println '        <coordinates>'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "${set.gps_long},${set.gps_lat},${set.gps_alt * (12 * 0.0254)}"
+        }
       }
-    }
-    data.each { set ->
-      if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-        file.println '      <gx:coord>' + set.gps_long + ' ' + set.gps_lat + ' ' + (set.gps_alt * (12 * 0.0254))  + '</gx:coord>'
+      file.println '</coordinates>'
+      file.println '      </LineString>'
+    } else {
+      file.println '      <gx:Track>'
+      file.println '        <gx:altitudeMode>absolute</gx:altitudeMode>'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "        <gx:when>${set.timeStamp}</gx:when>"
+        }
       }
-    }
-    data.each { set ->
-      if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-        file.println '      <gx:angles>' + set.gps_track  + '0.0 0.0 </gx:angles>'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println '      <gx:coord>' + set.gps_long + ' ' + set.gps_lat + ' ' + (set.gps_alt * (12 * 0.0254))  + '</gx:coord>'
+        }
       }
-    }
-    if (rich) {
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println '      <gx:angles>' + set.gps_track  + '0.0 0.0 </gx:angles>'
+        }
+      }
       file.println '    <ExtendedData>'
       file.println '      <SchemaData schemaUrl="#schema">'
 
@@ -963,8 +978,9 @@ class Flight {
       file.println '        </gx:SimpleArrayData>'
       file.println '      </SchemaData>'
       file.println '    </ExtendedData>'
+
+      file.println '      </gx:Track>'
     }
-    file.println '      </gx:Track>'
     file.println '    </Placemark>'
     if (icons && !endsAtHome) {
       file.println '    <Placemark>'
@@ -995,77 +1011,6 @@ class Flight {
       file.println '</Document>'
       file.println '</kml>'
     }
-  }
-
-  def printLineString (file) {
-    file.println '<?xml version="1.0" encoding="UTF-8"?>'
-    file.println '<kml creator="mvpParse" xmlns="http://www.opengis.net/kml/2.2">'
-    file.println '<Document>'
-    file.println '    <name>mvpParse Track Log</name>'
-    file.println '    <Style id="mvpParse  LogStyle">'
-    file.println '      <LineStyle>'
-    file.println '        <color>7f00ffff</color>'
-    file.println '        <width>4</width>'
-    file.println '      </LineStyle>'
-    file.println '      <PolyStyle>'
-    file.println '        <color>7fffa400</color>'
-    file.println '      </PolyStyle>'
-    file.println '    </Style>'
-    file.println '    <Style id="downArrowIcon">'
-    file.println '      <IconStyle>'
-    file.println '        <href>http://maps.google.com/mapfiles/kml/pal4/icon28.png</href>'
-    file.println '      </IconStyle>'
-    file.println '    </Style>'
-    file.println '    <Placemark>'
-    file.println "      <name>Off Block: ${offBlock}</name>"
-    file.println '      <styleUrl>#downArrowIcon</styleUrl>'
-    file.println '      <Point>'
-    file.println '        <altitudeMode>absolute</altitudeMode>'
-    file.println "        <coordinates>${offBlockLong},${offBlockLat},${offBlockAlt * (12 * 0.0254)}</coordinates>"
-    file.println '      </Point>'
-    file.println '    </Placemark>'
-    file.println '    <Placemark>'
-    file.println "      <name>Takeoff: ${takeOffTime}</name>"
-    file.println '      <styleUrl>#downArrowIcon</styleUrl>'
-    file.println '      <Point>'
-    file.println '        <altitudeMode>absolute</altitudeMode>'
-    file.println "        <coordinates>${takeOffLong},${takeOffLat},${takeOffAlt * (12 * 0.0254)}</coordinates>"
-    file.println '      </Point>'
-    file.println '    </Placemark>'
-    file.println '    <Placemark>'
-    file.println '      <name>mvpParse</name>'
-    file.println '      <styleUrl>#mvpParseLogStyle</styleUrl>'
-    file.println '      <LineString>'
-    file.println '        <extrude>1</extrude>'
-    file.println '        <tessellate>1</tessellate>'
-    file.println '        <altitudeMode>absolute</altitudeMode>'
-    file.println '        <coordinates>'
-    data.each { set ->
-      if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
-        file.println "${set.gps_long},${set.gps_lat},${set.gps_alt * (12 * 0.0254)}"
-      }
-    }
-    file.println '</coordinates>'
-    file.println '      </LineString>'
-    file.println '    </Placemark>'
-    file.println '    <Placemark>'
-    file.println "      <name>Landing: ${landingTime}</name>"
-    file.println '      <styleUrl>#downArrowIcon</styleUrl>'
-    file.println '      <Point>'
-    file.println '        <altitudeMode>absolute</altitudeMode>'
-    file.println "        <coordinates>${landingLong},${landingLat},${landingAlt * (12 * 0.0254)}</coordinates>"
-    file.println '      </Point>'
-    file.println '    </Placemark>'
-    file.println '    <Placemark>'
-    file.println "      <name>On Block: ${onBlock}</name>"
-    file.println '      <styleUrl>#downArrowIcon</styleUrl>'
-    file.println '      <Point>'
-    file.println '        <altitudeMode>absolute</altitudeMode>'
-    file.println "        <coordinates>${onBlockLong},${onBlockLat},${onBlockAlt * (12 * 0.0254)}</coordinates>"
-    file.println '      </Point>'
-    file.println '    </Placemark>'
-    file.println '  </Document>'
-    file.println '</kml>'
   }
 
 }
