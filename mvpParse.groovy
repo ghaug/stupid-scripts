@@ -216,7 +216,7 @@ class MvpParse {
             def f2 = new Flight(flight, kmlStep)
             f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons, kmlForGE)
             if (flight.endsAtHome && !mixColors) journey++
-            if (flight.endsAtHome && mixColors) journey += (rnd.nextInt(16) + 1)
+            if (flight.endsAtHome && mixColors) journey += (rnd.nextInt(5) + 1)
           }
         }
         if (tex) {
@@ -886,13 +886,64 @@ class Flight {
         file.println '      <gx:SimpleArrayField name="f_flow" type="float">'
         file.println '        <displayName>Fuel flow</displayName>'
         file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="m_p" type="float">'
+        file.println '        <displayName>Manifold Pressure</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="oil_p" type="float">'
+        file.println '        <displayName>Oil Pressure</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="oil_t" type="float">'
+        file.println '        <displayName>Oil Temperature</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="egt1" type="float">'
+        file.println '        <displayName>EGT1</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="egt2" type="float">'
+        file.println '        <displayName>EGT2</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="egt3" type="float">'
+        file.println '        <displayName>EGT3</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="egt4" type="float">'
+        file.println '        <displayName>EGT4</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="egt5" type="float">'
+        file.println '        <displayName>EGT5</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="egt6" type="float">'
+        file.println '        <displayName>EGT6</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="oat" type="float">'
+        file.println '        <displayName>OAT</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="tit" type="float">'
+        file.println '        <displayName>TIT</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="cht1" type="float">'
+        file.println '        <displayName>CHT1</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="cht2" type="float">'
+        file.println '        <displayName>CHT2</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="cht3" type="float">'
+        file.println '        <displayName>CHT3</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="cht4" type="float">'
+        file.println '        <displayName>CHT4</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="cht5" type="float">'
+        file.println '        <displayName>CHT5</displayName>'
+        file.println '      </gx:SimpleArrayField>'
+        file.println '      <gx:SimpleArrayField name="cht6" type="float">'
+        file.println '        <displayName>CHT6</displayName>'
+        file.println '      </gx:SimpleArrayField>'
         file.println '    </Schema>'
       }
       file.println '  <Folder>'
     }
     file.println '    <Placemark>'
     if (!forGE) {
-      file.println "    <name>I ${index} Flt ${fltNum} ${fltStart}</name>"
+      file.println "    <name>Flt ${fltNum} ${fltStart}</name>"
     }
     file.println "    <styleUrl>#multiTrack${index}</styleUrl>"
     if (!rich) {
@@ -973,6 +1024,142 @@ class Flight {
       data.each { set ->
         if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
           file.println "          <gx:value>${set.f_flow}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="m_p">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.m_p}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="oil_p">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.oil_p}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="oil_t">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.oil_t}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="egt1">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.egt1}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="egt2">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.egt2}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="egt3">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.egt3}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="egt4">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.egt4}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="egt5">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.egt5}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="egt6">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.egt6}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="oat">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.oat}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="tit">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.tit}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="cht1">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.cht1}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="cht2">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.cht2}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="cht3">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.cht3}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="cht4">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.cht4}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="cht5">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.cht5}</gx:value>"
+        }
+      }
+      file.println '        </gx:SimpleArrayData>'
+
+      file.println '        <gx:SimpleArrayData name="cht6">'
+      data.each { set ->
+        if (!Double.isNaN(set.gps_lat) && !Double.isNaN(set.gps_long)) {
+          file.println "          <gx:value>${set.cht6}</gx:value>"
         }
       }
       file.println '        </gx:SimpleArrayData>'
