@@ -651,12 +651,13 @@ class Flight {
 
     def firstFltIndex = -1
     def lastFltIndex = -1
-    data.eachWithIndex { set, i ->
-      if (firstFltIndex == -1 && set.flt_tm != 0.0) firstFltIndex = i
+    for (int i = 0; i < data.size() && firstFltIndex == -1; ++i) {
+      if (data[i].flt_tm != 0.0 && data[i].gps_long != Double.NaN && data[i].gps_lat != Double.NaN) firstFltIndex = i
     }
+
     if (firstFltIndex != -1) {
       for (int i = data.size() - 1; i >= 0 && lastFltIndex == -1; --i) {
-        if (data[i].flt_tm != 0.0) lastFltIndex = i
+        if (data[i].flt_tm != 0.0 && data[i].gps_long != Double.NaN && data[i].gps_lat != Double.NaN) lastFltIndex = i
       }
     }
     if (firstFltIndex != -1 && lastFltIndex != -1) {
