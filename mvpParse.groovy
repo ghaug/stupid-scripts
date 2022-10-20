@@ -196,8 +196,8 @@ class MvpParse {
 
         def flight = new Flight(csvFile)
 
-        fltTime = fltTime.plus(flight.flightDuration)
-        blkTime = blkTime.plus(flight.blockDuration)
+        if (flight.flightDuration) fltTime = fltTime.plus(flight.flightDuration)
+        if (flight.blockDuration) blkTime = blkTime.plus(flight.blockDuration)
         track += flight.track
         fuel += flight.integFuel
 
