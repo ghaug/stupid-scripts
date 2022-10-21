@@ -212,7 +212,7 @@ class MvpParse {
           if (kmlColorScheme == 1) colorIndex = i % 16
           if (kmlColorScheme == 2) colorIndex = journey % 16
           colorIndex = deck[colorIndex]
-          if (!kmlOmitLocals || !(flight.startsAtHome && flight.endsAtHome) && flight.flightDuration.getSeconds() > 180 ) {
+          if (!kmlOmitLocals || !(flight.startsAtHome && flight.endsAtHome) && flight.flightDuration != null && flight.flightDuration.getSeconds() > 180 ) {
             def f2 = new Flight(flight, kmlStep)
             f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons, kmlForGE)
             if (flight.endsAtHome && !mixColors) journey++
@@ -514,6 +514,12 @@ class Flight {
         zuluOffset = zoneDiffSign + hr_str + ':' + min_str
 
         // Determin date of start time
+        if (this.fltDateFormat =~ "mm/dd/yy") {
+          def month = rawDate.substring(0, 2)
+          def day = rawDate.substring(3, 5)
+          def year = rawDate.substring(6, 8)
+          rawDate = "20${year}/${month}/${day}"
+        }
         def fm = new SimpleDateFormat('yyyy/MM/dd')
         def d = fm.parse(rawDate)
         if ((firstTime - headerTime) > 23 * 3600) {
@@ -536,18 +542,19 @@ class Flight {
         // In header, collect data
         def m = line =~ /^Local Time: /
         if (m) {
+          //println "line: ${line}"
           m = line =~ /\d\d:\d\d:\d\d/
           assert m
           rawTime = m.group()
           m = line =~ /\d\d\d\d\/\d\d\/[\d| ]\d/
-          //print m
+          if (!m) m = line =~ /\d\d\/\d\d\/\d\d/
           assert m
           rawDate = m.group()
           rawDate = rawDate.replaceAll(' ', '0')
         }
         m = line =~ /^Date Format: /
         if (m) {
-          m = line =~ /..\/..\/../
+          m = line =~ /....\/..\/../
           assert m
           this.fltDateFormat = m.group()
         }
