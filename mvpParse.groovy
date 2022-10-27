@@ -212,6 +212,7 @@ class MvpParse {
           if (kmlColorScheme == 1) colorIndex = i % 16
           if (kmlColorScheme == 2) colorIndex = journey % 16
           colorIndex = deck[colorIndex]
+          if (kmlColorScheme == 0 && mixColors) colorIndex = deck[0]
           if (!kmlOmitLocals || !(flight.startsAtHome && flight.endsAtHome) && flight.flightDuration != null && flight.flightDuration.getSeconds() > 180 ) {
             def f2 = new Flight(flight, kmlStep)
             f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons, kmlForGE)
