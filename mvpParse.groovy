@@ -745,8 +745,8 @@ class Flight {
   def printTrack (file, header, footer, index, width, rich, icons, forGE) {
     def lColors_w = ['ff7e649e', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff007cf5', 'ff7b18d2', 'ffd18802', 'ff177781',
                      'ff00d6ef', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff444444', 'ff4242ff', 'ff8dffff', 'ffee00ee']
-    def lColors_e = ['ff007cf5', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'fff01cce', 'ff5b18c2', 'ffd18802', 'ff74b7e9',
-                     'ff00c6df', 'ffea4882', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffee00ee']
+    def lColors_e = ['fff01cce', 'ffa7a700', 'ffb18ff3', 'ffd18802', 'ffb0279c', 'ff007cf5', 'ff5b18c2', 'ff74b7e9',
+                     'ffea4882', 'ff00c6df', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffee00ee']
     def lColors
     if (forGE) {
       lColors = lColors_e
