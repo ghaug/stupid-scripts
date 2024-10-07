@@ -190,12 +190,16 @@ class MvpParse {
       def blkTime = Duration.ZERO
       def track = 0
       def fuel = 0.0
+      float tachStart
+      float tachEnd
       for (def i = 0; i < numFiles; i++) {
         def csvFile = new File(csvFileNames[i])
         if (csvFile == null || !csvFile.exists() || !csvFile.canRead()) throw new FileException('Cannot find ' + csvFileName)
 
         def flight = new Flight(csvFile)
 
+        if (numFiles > 1 && i == 0) tachStart = flight.tachStart
+        if (numFiles > 1 && i == (numFiles - 1)) tachEnd = flight.tachEnd
         if (flight.flightDuration) fltTime = fltTime.plus(flight.flightDuration)
         if (flight.blockDuration) blkTime = blkTime.plus(flight.blockDuration)
         track += flight.track
@@ -238,6 +242,7 @@ class MvpParse {
         println "BlkTime: ${h}:${String.format('%02d', new Long(m))}"
         println "Track: ${track}NM"
         println "Fuel: ${String.format(Locale.US, '%.1f', new Double(fuel))}USG"
+        println "Tach Time: ${String.format(Locale.US, '%.2f', new Float(tachEnd - tachStart))}"
       }
     }
     catch (WrongArgException e) {
@@ -281,6 +286,8 @@ class Flight {
   def fltNum
   def fltDateFormat
   def fltStart
+  float tachStart
+  float tachEnd
   def loggingDuration
   def data = []
   def flightDuration = null
@@ -375,6 +382,8 @@ class Flight {
       println "Track: ${track}NM"
       println "maxAlt: ${maxAlt}ft"
       println "Fuel: ${String.format(Locale.US, '%.1f', new Double(integFuel))}USG"
+      println "Tach Start: ${String.format('%.2f', new Float(tachStart))}"
+      println "Tach End: ${String.format('%.2f', new Float(tachEnd))}"
     }
   }
 
@@ -421,6 +430,8 @@ class Flight {
     fltNum = f.fltNum
     fltDateFormat = f.fltDateFormat
     fltStart = f.fltStart
+    tachStart = f.tachStart
+    tachEnd = f.tachEnd
     loggingDuration = f.loggingDuration
     flightDuration = f.flightDuration
     blockDuration = f.blockDuration
@@ -626,6 +637,8 @@ class Flight {
         ofbIndex = i
       }
     }
+    tachStart = data[0].tach_tm
+    tachEnd = data[data.size() - 1].tach_tm
     onBlock = null
     def lastLat = -1000.0
     def lastLong = -1000.0
@@ -730,7 +743,7 @@ class Flight {
   }
 
   def printTrack (file, header, footer, index, width, rich, icons, forGE) {
-    def lColors_w = ['ff007cf5', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff7e649e', 'ff7b18d2', 'ffd18802', 'ff177781',
+    def lColors_w = ['ff7e649e', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff007cf5', 'ff7b18d2', 'ffd18802', 'ff177781',
                      'ff00d6ef', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff444444', 'ff4242ff', 'ff8dffff', 'ffee00ee']
     def lColors_e = ['ff007cf5', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'fff01cce', 'ff5b18c2', 'ffd18802', 'ff74b7e9',
                      'ff00c6df', 'ffea4882', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffee00ee']
