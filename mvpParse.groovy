@@ -207,6 +207,10 @@ class MvpParse {
               }
             }
             ImageIO.write(bi, "png", new File("${kmzDir}/images/arrow.png"))
+            def adIconString = "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"
+            def adIconBytes = Base64.getDecoder().decode(adIconString)
+            OutputStream stream = new FileOutputStream("${kmzDir}/images/ad.png")
+            stream.write(adIconBytes)
           }
         } else {
           kmlFile = new File(kmlFileName)
@@ -1348,7 +1352,11 @@ class Flight {
         file.println "        <heading>${ldgTrack}</heading>"
         file.println "          <scale>${iconScale}</scale>"
         file.println "          <Icon>"
-        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
+        if (forGE) {
+          file.println '          <href>images/ad.png</href>'
+        } else {
+          file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
+        }
         file.println "          </Icon>"
         file.println "        </IconStyle>"
         file.println "     </Style>"
