@@ -25,7 +25,7 @@ class MvpParse {
     println '           -i      output flight information'
     println '           -k out  write kml/kmz file'
     println '           -a      track direction arrows (will generate kmz)'
-    println '           -b int  arrow size with -a, ignored with -e  (0 to 9, default 5)'
+    println '           -b int  icon/arrow size, with -e affects both, without only arrows (0 to 9, default 4)'
     println '           -c int  color scheme in kml (0: mono, 1: color full, 2: journeys)'
     println '           -e      optimize kml for Google Earth'
     println '           -j      icons in kml'
@@ -33,7 +33,7 @@ class MvpParse {
     println '           -o      omit local flights in kml'
     println '           -r      output rich kml (for interactive use of GE)'
     println '           -u int  position update interval in kml (default 2)'
-    println '           -w int  line width in kml (default 9)'
+    println '           -w int  line width in kml (default 5)'
     println '           -s      output summary of internal data'
     println '           -t name output flight information in latex format'
     println '           -v      output debug info on stdout'
@@ -54,14 +54,14 @@ class MvpParse {
       def exit = false
       def kmlFileName = ''
       def kmlDirArrows = false
-      def kmlDirArrowSize = 5
+      def kmlDirArrowSize = 4
       def csvFileNames = []
       def ignore = 0
       def tex = 0
       def texFileName = ''
       def numFiles = 0
       def kmlStep = 2
-      def kmlWidth = 9
+      def kmlWidth = 5
       def kmlForGE = false
       def kmlIcons = false
       def richKml = false
@@ -811,9 +811,12 @@ class Flight {
     def lColors_e = ['fff01cce', 'ffa7a700', 'ffb18ff3', 'ffd18802', 'ffb0279c', 'ff007cf5', 'ff5b18c2', 'ff74b7e9',
                      'ffea4882', 'ff00c6df', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffee00ee']
     def lColors
+    def iconScale
     if (forGE) {
+      iconScale =  0.4 +  (arrowSize * arrowSize / 80) *  3
       lColors = lColors_e
     } else {
+      iconScale = 1.0
       lColors = lColors_w
     }
     def iColor1 = '880E4F'
@@ -839,7 +842,7 @@ class Flight {
         file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-normal\">"
         file.println '      <IconStyle>'
         file.println "        <color>${iColor1r}</color>"
-        file.println '        <scale>1</scale>'
+        file.println "        <scale>${iconScale}</scale>"
         file.println '        <Icon>'
         file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
         file.println '        </Icon>'
@@ -854,13 +857,13 @@ class Flight {
         file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-highlight\">"
         file.println '      <IconStyle>'
         file.println "        <color>${iColor1r}</color>"
-        file.println '        <scale>1</scale>'
+        file.println "        <scale>${iconScale}</scale>"
         file.println '        <Icon>'
         file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
         file.println '        </Icon>'
         file.println '      </IconStyle>'
         file.println '      <LabelStyle>'
-        file.println '        <scale>1</scale>'
+        file.println "        <scale>${iconScale}</scale>"
         file.println '      </LabelStyle>'
         file.println '      <BalloonStyle>'
         file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
@@ -879,7 +882,7 @@ class Flight {
         file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-normal\">"
         file.println '      <IconStyle>'
         file.println "        <color>${iColor2r}</color>"
-        file.println '        <scale>1</scale>'
+        file.println "        <scale>${iconScale}</scale>"
         file.println '        <Icon>'
         file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
         file.println '        </Icon>'
@@ -894,13 +897,13 @@ class Flight {
         file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-highlight\">"
         file.println '      <IconStyle>'
         file.println "        <color>${iColor2r}</color>"
-        file.println '        <scale>1</scale>'
+        file.println "        <scale>${iconScale}</scale>"
         file.println '        <Icon>'
         file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
         file.println '        </Icon>'
         file.println '      </IconStyle>'
         file.println '      <LabelStyle>'
-        file.println '        <scale>1</scale>'
+        file.println "        <scale>${iconScale}</scale>"
         file.println '      </LabelStyle>'
         file.println '      <BalloonStyle>'
         file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
@@ -930,7 +933,7 @@ class Flight {
         file.println '    </Style>'
         file.println "    <Style id=\"multiTrack_h${i}\">"
         file.println '      <IconStyle>'
-        file.println '      	<Icon>'
+        file.println '      	<Icon>' // xxxx
         file.println '      	</Icon>'
         file.println '      </IconStyle>'
         file.println '      <LineStyle>'
@@ -954,11 +957,9 @@ class Flight {
         file.println '      <gx:SimpleArrayField name="time" type="string">'
         file.println '        <displayName>Time</displayName>'
         file.println '      </gx:SimpleArrayField>'
-
         file.println '      <gx:SimpleArrayField name="gs" type="int">'
         file.println '        <displayName>GS</displayName>'
         file.println '      </gx:SimpleArrayField>'
-
         file.println '      <gx:SimpleArrayField name="altitude" type="int">'
         file.println '        <displayName>Altitude</displayName>'
         file.println '      </gx:SimpleArrayField>'
@@ -1313,7 +1314,7 @@ class Flight {
           if (forGE) {
             file.println "        <heading>${track}</heading>"
           }
-          file.println "          <scale>1</scale>"
+          file.println "          <scale>${iconScale}</scale>"
           file.println "          <Icon>"
           file.println "            <href>images/${icon}</href>"
           file.println "          </Icon>"
@@ -1345,7 +1346,7 @@ class Flight {
         file.println "     <Style>"
         file.println "        <IconStyle>"
         file.println "        <heading>${ldgTrack}</heading>"
-        file.println "          <scale>1</scale>"
+        file.println "          <scale>${iconScale}</scale>"
         file.println "          <Icon>"
         file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
         file.println "          </Icon>"
