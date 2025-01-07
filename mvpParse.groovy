@@ -25,7 +25,7 @@ class MvpParse {
     println '           -i      output flight information'
     println '           -k out  write kml/kmz file'
     println '           -a      track direction arrows (will generate kmz)'
-    println '           -b int  icon/arrow size, with -e affects both, without only arrows (0 to 9, default 4)'
+    println '           -b int  icon/arrow size, with -e affects all, without only arrows (0 to 9, default 4)'
     println '           -c int  color scheme in kml (0: mono, 1: color full, 2: journeys)'
     println '           -e      optimize kml for Google Earth'
     println '           -j      icons in kml'
@@ -34,8 +34,9 @@ class MvpParse {
     println '           -r      output rich kml (for interactive use of GE)'
     println '           -u int  position update interval in kml (default 2)'
     println '           -w int  line width in kml (default 5)'
-    println '           -s      output summary of internal data'
-    println '           -t name output flight information in latex format'
+    println '           -s int  scale factor for initial kml view (and for moving icon tour, default 3000)'
+    println '           -t int  generate kml moving icon tour of int seconds (default 0, impies -e)'
+    println '           -z      zoom in on kml moving icon tour (optical effect)'
     println '           -v      output debug info on stdout'
     println '    file [file...]:'
     println '             csv file(s)'
@@ -48,7 +49,6 @@ class MvpParse {
       def optFound = false
       def kml = false
       def dump = false
-      def summary = false
       def fuelUsed = false
       def information = false
       def exit = false
@@ -57,8 +57,6 @@ class MvpParse {
       def kmlDirArrowSize = 4
       def csvFileNames = []
       def ignore = 0
-      def tex = 0
-      def texFileName = ''
       def numFiles = 0
       def kmlStep = 2
       def kmlWidth = 5
@@ -68,15 +66,15 @@ class MvpParse {
       def kmlColorScheme = 0
       def kmlOmitLocals = false
       def mixColors = false
+      def kmlTourDuration = 0
+      def kmlScaleFactor = 3000
+      def kmlZoomIn = false
       def deck = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+      def flights = []
 
       args.eachWithIndex { arg, i ->
         if (ignore == 0) {
           switch (arg) {
-            case'-s' :
-              summary = true
-              optFound = true
-              break
             case '-i' :
               information = true
               optFound = true
@@ -98,10 +96,20 @@ class MvpParse {
               ignore = 1
               break
             case '-t' :
-              tex = true
-              optFound = true
               if (args.length > i + 1) {
-                texFileName = args[i + 1]
+                kmlTourDuration = args[i + 1] as int
+                if (kmlTourDuration > 0) {
+                  kmlForGE = true
+                }
+              }
+              ignore = 1
+              break
+            case '-z' :
+              kmlZoomIn = true
+              break
+            case'-s' :
+              if (args.length > i + 1) {
+                kmlScaleFactor = args[i + 1] as int
               }
               ignore = 1
               break
@@ -211,6 +219,12 @@ class MvpParse {
             def adIconBytes = Base64.getDecoder().decode(adIconString)
             OutputStream stream = new FileOutputStream("${kmzDir}/images/ad.png")
             stream.write(adIconBytes)
+            if (kmlTourDuration > 0) {
+              def acIconString = "iVBORw0KGgoAAAANSUhEUgAAAIsAAABnCAYAAAAwn7EGAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV/TSkUqCnYQKZihOtlFRRxrFYpQIdQKrTqYXPoFTRqSFBdHwbXg4Mdi1cHFWVcHV0EQ/ABxdnBSdJES/5cWWsR4cNyPd/ced+8AoVFhmhWIA5pum+lkQszmVsXgK0KIYBABjMrMMuYkKQXP8XUPH1/vYjzL+9yfo1/NWwzwicRxZpg28QbxzKZtcN4nDrOSrBKfE0+YdEHiR64rLX7jXHRZ4JlhM5OeJw4Ti8UuVrqYlUyNeJo4qmo65QvZFquctzhrlRpr35O/MJTXV5a5TjOCJBaxBAkiFNRQRgU2YrTqpFhI037Cwz/i+iVyKeQqg5FjAVVokF0/+B/87tYqTE22kkIJoOfFcT7GgOAu0Kw7zvex4zRPAP8zcKV3/NUGMPtJer2jRY+AgW3g4rqjKXvA5Q4w/GTIpuxKfppCoQC8n9E35YChW6BvrdVbex+nD0CGukrdAAeHwHiRstc93t3b3du/Z9r9/QCBanKsYNj7rgAAAAZiS0dEAAEAAQABsubIbgAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB+kBBQw3M9HsAS4AABZVSURBVHja7V15kGVldf+d7/vu9pbu18tMDwM4CCKIiKClxGCiA26AomJco2U0cRc1VUkl+TN/xKr8pahxAyWFKZNoVaoEBAtFAcEowUQtN1BngQG66f0td/uWkz/ufW+66WGmZ5gZuvvd0/WqXt133+t7z/19Z//OIVS0in741/c/X5D4j9zmu3df+0fTFUcOkqhYcJDu+Ni9YejXvn7qxJnn1v3Gt2/90PeDiisVWA5JngyuHK2Nn6eEwlhj2wvqQf2KiisVWA5JBPxl6EUAgMCLAIi3Vlw5SGoYb/qGt984UgsaviAp3nzD6+cAuPKj50pSYDAECRBQ63/nxnd+fSxQkQQY1ll+x41vnh/CxbR16a5P3Hc6gH8gEi8JvejZQsiaIIInfQAMAsE4h9ykYDDnOqVnbj8X1hkQEfbP/g6+FxoCqdCLQESD7+VGg+FgrGlnJvkDM98D4NqXffrFf6gky+akGQD/5Eu/ycx1a3XLAMhNBoABhpBCTRurfSLxTaWCZ7aTxQIUzFDSh3P2QWP1nxORtVbvAPWlEAEgKOnNKfZSbbIOQLOVZNnCdNs1P/DGgsnHd44/owUQuukyxurbsNidQ7M2CucsHlnY92icx7te8dk/NpWBO8Tkk3/LVOu0liQFQQJSKCzFcyABCAhI4eGU1uk7pcBnKm9omKXKh+541kRj6gWBF4DBAIDQi7DYncdoNF4eY/heiFZt8qqb3v+dbRVYhlWqeNEFI9FYyzk3OCaFwqnju+D44DEwUA9HJkdrYxdWYBlSagSNF0op1xj5Uqw+xGD40g88FTy7AsuQkhTeKaJkAZE40rmQwttVgWUY7ZUPf19IIU8DCNrmWOw9fkS/UZCYrMAyjFKFpCASYSFVCJIUwHwEvFBYgWUIybJ1YLYAIEjAVwFATx52IiYIQWcNM1jUsN64J/2QhNgFAgRkmTg8InElWYaQmBmChFx3CJsAgjinAssQEhH5RGLH0WQ8iOBXYBnSeyes/+ETEQiiVoFlKJFCvnEGqU6Q5vERX0kewziDOz/xI1mBZfgUkSyNl4HtysxgZ8HOgZ1b7UozQ0kPzPTCyhsathsX3otqfhOKJNp5G90RCV1XSBsKIAIB8DsaQdeg3rEYDVoIVAAArQoswyZXhIi6aRv7n9/A8nlngAggB8DxKquGReEvj/7iMZz1Ww0AzwNwewWWYXKdnX3h9OkeOudsh9Tu0Cc5HvhKnfN24NHZvQg7cmhD/sMbZ3EcpNsi0DrDbMRAvLMJMJ9TgWXYSNJuWzu6sAkX3NpegWWI6Hsfv/e55PgcpdcfvWcCyLgMAH3vo/c8ZyjtvK18c998700iUJ5XD0bqvgonpJBNx+5dvgquIZDUuyaw76IWXFB4QIfMOhe7PyAyg6l7HtobTHdGI6+mUpN+mdl9k8FL2mTznWSpa5zRb/rKVa4Cyyahr7/7G43RaPxCJf0LmtHIuZFXP0cKdbonvWd4yq/nJkcjaOKx9gGMReNo1xymd0h0tnkwkyOrMoXkHLz5HuozMcYPpBjNPLRdF6dEp8A4DQAwVqfG6X3a5g+lefJAN11+UFv9c23yX73h+isWthRY7vr4fe8E+G0M2HV+Zz/D7V+NONoIuLsQRK9uBI16IxwNIr8uiQTEEyrgjNWwzmLazKF99jjOf7goUdFs0M6XV+toEohkhCxNMFpr4RdnadR+P4tdZhLS8yGFfILz5MDMSHTXduKlLM57hpm/AeBBHNz1eEKXPnNRZL7ysgh0IUCtp/CzCsC3VD4efa0+uR2nL0fry78zrznPsYVz9mlDCYPhSb/YaUhURGL50M9GSQ+5yUAMdHfWYR/WUKTgk4/t0dSa++qkbYw1J5HbHMm2Gmq/ByxbEBxUGXnoc0SQAAhoBmNyNBqvMYBcJ39lnD0pS4kBeNJbs3CJigV9LPUVggj7w2V0dfcK5SSBlYQgCV7Pzx3iriUksAEyJo7dEStOGCiARAA5Xvv9FZTrDIEKwVzEW/rnW2cAI5DaHpT0UA9HwKVUKf6Hg3V9cPpQGySbdCyAFUIAQsD5EkpYhsjN+oCyRYw0Yw1YEKTmUoU+yblEa6rnuNzrHPk1ALWifrc7C0/6qAWNrckzY0HWOtHsAqd16xvq4hxbdNNlLMeLxSo+Ab9PBEjtDldJeSiRVDpMB+0CT/po1ScOgusYyTqLNO8hN+nGehbO4bSsheZMsiwE0R9ogzlF2hqEXh2t2jgynRx/3c7u4B3z4W2hgzE8CZnaQsk4t0qoMz81qUwgJHkXSvrQVj+t9t8h7TwhQUQsALQ3YmmpYwsHBz4Bl8YAVOZwxm+Tw+4XkkIhzePCZiHCmb9JEXRyOMHH+XqKfjBK+VDC26gmAYmVS2SDuMDwZQBtMnTiJdTD5nH/fSEkJAhTGD+szSKFQj0cRSddQjfroKkVpBMQQp2AJyHQTZeR2wxCPP0WMYFKtVp4l2C0FQMMEHKTQpu82LpZ6l5PelDSX+EynxzEEwGNqAU6hIdyPMgjhQXP4GE5jynbOKytIYgwWpsA2GFfuAzdZYgTsKBqfgPO2fV7pccRFCibFBmroW1ehB+cK66DGbWgCQAPKoB/7thdxMwI/dpBVDOQ5D20k0UQCPWwCSX8p2zIHY1dcaJYpkiiNx4gnQowtXd91wLn0D69Aa+7BGnUCbhfBpE4aUDphwMymyLRPYCLPnqhKrbEsCqA1E2X+8KDykO0Gmmlj9kIR9CgUYAZiY4R591SPMtCHgkBJbwSQAJSiONi8J1oEkKtibEcjestxEbPktDAy7Ou2EvHAKzTKDSKg3MOgghSeBirbVsTzKS18RmhmJ0yTsM4g8CLIIQciKCVQa5AhQhVBAYPVj2jrFkFYE2G3GYACLWgDl8GJ0SFHBfJojx4Cz2IbduOWqGwIEjeuDXbggQyk6CX9UBE8KUHJQMARduzvmggEmVUl9cEMwkEEsXnli1yk4Hh9qo0T767Z+Y3CRGMIHVpPRypjUStUV/6IZGQQkhJJVJ5YFOs0NpSlvZNgJpogJnRTdvopEuYaExhZe+TDbPuSIAsQ7jSNVonYsgB/mIKjG1MyUJEWE4WIElhvLGtdPOBJ0tL9ZsVFdKG4dg655zJTRK34+XlWHe7zrn7mJ2WQt2qXn7txTcCuLH/Aze977aJx6U6PfCiHTW/fraS/nOUVGcr4Z8nhNjpSR+BCuGroNCx7EoJwnClaG+GLcx3ppFmMUgIBCoaJLl4A0gbEgLkHGRqCk28TtHuZxYyM5Cl6n36lY0AiaK0ItVJET8igVrQWBOrEWVS1bKFNjmy0qFxbB/SVv/SObMvt/kDSdb5XarTh40zD7/huitWZVbXcOqq6y6fB9Dv8fodALjjmnslgACgwJPeS0iI9xBwReTXazW/wY1wlMQKe4XhIESxfzjVMRa6M2AwAhWhEY6UquwIEbETSFKowuYy9mieDLx2Cvc02yuF91K8j7M20jyBA9AIG/BVAKfdIC7Ud0Scc1hOF7ibtinTyQKAW5xz39Q2vwegDMzZZZ+75IireF3L6rLPXmIBxOXr1vKFmz5w60Sg6hcT0UX1oHlO5NV2+So8U0k1apxuaqfhqQBR0Ch7x2bopstwDCgpQURgBpRQA59eFtHCE2ooUxEmRq1tsN54P4GAk2C4r7x3W0oHZgtTvndsi+sgQqBCNKMWnHMwVsM4i9ykMM70rNXzqU72ZCbd00vbexn08zhr3/nG61/beUp8Ox50ywdul1IqX0B4gR+eShDPEkJe4Cv/xUr4l0oSjSioI/LLFeDsoP7DOA3nDBwwOC5KcaqEAjMfd2N578KDqLUmMSXG1/2d6XQGutvG6ZNnr/kszrqoh81jADhBlAlL5yx6WaeItwgJKVXhfUEUxilRoU6EgDYZelkXqU5gnZnVNr9Xm/yHzO63jvmhRMf7iVnHupdfff3r3HFbZCeDbvngdydqQXO3IHqTkt4ZNa8xFfnRlK+impQKkmQZeudyBTnEWQfGGSjhIVAhSBS2fFF0dOyX7pzFdOcRqDDC9mD9DSgfXz4AKRRGaxNQ0jtmsHCZXypcWIvMZODBAmkOCrYIBMcOlg2ss8h1miZ5fKCbt2fZ2d9Y577dyzt3vu6Lr1o4OSrwaaLvfOTObQQx5Stv0lfhpYLE+Up65wdetDOQQd1TAaRQ8JVfimQDxw7GGWibg7iotVDSB5ghhYJSHsBHjvomOoazGpnJMN5Yf7H+bPtRhF4ETwUIvdphwFJKCxTlEJZNeQ8argyGKemXKreIVREBuclhbA5jNTKbxZlOHtZWP+Cc/W9t8zu1yXuO7aOv+fzup2VuwIbzAW/70Pd3gfCMut/8U6W8i5TwLg5U0Az9ehR5db8vhkGAtQbaacAxDJuynIEG3tqTecXteBG1sIlMx6gHI+tm1VI8j5GohTjroBGOrgZL3kXNb4LByE0CbfIyACjK5CDgqwBSyMJVdQ6WLZK8l2UmSTOdto0zP81Nelec9X5MwMzlX7h070Z6NpuiYPt7H71nlxTyHCHEM3wZXqCU/zIl1QWBChF6taLFVxls4mJqB4zLB7ZOP1oZenUIIbAcL6IZjSLOumiEI+tiExGw2JtDqzaBTrqMZjgK6ywyEwNc1KN4qrArlPAGke1+ZZ42GVIdIzMZLJv7c53dl5n0p8y8xzmz5xWf+5OHNvpz2LTV/Xdccy8xcBERriAS5zf85nMCPzorUGHdkwE85UOtyA47dkiyLgxbGJtjJBpHkveOABaCsXlZc0vopEuYbO7AQmcWQgr40kcUNCBWbL8yTiM3ObTNoE0eJzp+oJd19zC7HzO7m5n5wVd+7k82ZVniltkKcv3bvuRPNE7bVgvqp9X85vlSqud50jvTk/5zPOU/q1/QLYVEbjJ40keSx4cFi7Y5tMnhe4XkaseLmGhuR5x1EXgRrDPQJkNuc2uteTAz2QPG6QPG6p/30qX7U53N/uzBe6f/8e5P2q3A4y29yez2j96tfOnXQBQKEucR6NUMvKURNs+cbOxAfATJkpsMVM4nIhAW4zm0auN4bOkhpHnyUwbuAvjfmN0jziHJTJy85vO7t+zkkKEcIfOt9922q1Wf+M/to6de3HyCobpKspgMWAmW3izmOjN3t+OFt1113eWPDRvfhnKv8+uvu3y/tvmfGZuvWwowGMYZWGeuGEagDC1Yysc/Z53bc7hio0EZRvnnnPnfyz57SW9YOTa0YDHW5MzuwOFymUp6MEYj0ykyncA4+zCGmIYWLK/5/G5nnZ0+XOa7n58KvajowE20XIFlWBURuy6v+1yGc+ZnFViGlBy7+fVmidlZgJFXYBlSsqwf43WW7lm21rJdqsAypJSbfJrB64iuEqyzxjk7V4FlSCnNe3NFK+0jQQVwzurcZrMVWIZVDVm7pJ3OjxjIJsA4Y7pJ+/EKLMPqDYEWU91LxBHqcBmAcXpJOxNXYBlWm0X35tI8jVcXbTPibHVNMzGQm3zO2jStwDKkdPVXX9/NdJyt3OhuncNib34VfhiMTCcH3vqvb64kyzBTZrLplTW7XBZIrw6/MHKTLg07r4YeLADdl+p40BDAskMjGEGmD2ocbTW0yX9dgWXIicE/yc1Bh8jYHPWwCePy0hEi5DoFIPZXYBlyMlbfneoYfbQ4doi8BvKyOh8EZCaFZX1/BZYhp8s/v3vWWD0wcZ2z5fBMGkiWVKe44guX7anAUhGY+aF+14H+rkgSK/ccm3bFpQosfbvlV67s7EBEcMWAcAAMyxYA31lxqQJLX3rc5wpQlNtOy87bPBjesLfiUgWW0k4xv2ZmgMpeSINmgIUNY9n+uOJSBZZSDWHZOQtmrNpd2PeOrNX7Ki5VYCkBYZets2l/t3SfiAjGag1QXHGpAgsAwLLrWrbJEysViADj9ALDLVVcqsACAMh1uuic7RTG7iq4wFjdc84lFZcqsAAAkqzbc+wKNbRq0DPBOL0w351ZrLhUgQUAYNhoa/VSv9K/36oVAKy16VtuuNpUXKrAAgC4+vrX9YzT0yBGL+0gyxO04yWUsZfjXkp51yf+Z1M2JNiUF337h+9WUVj7iSQ1Ahx1G0sikj8hgnbOgsuW5L4Mdp8ydtoZvayNZjiOdrKIml/Ho4v79zG77wshwczbmN25ONYGvkSeNrrxsk+/aFNOnVeb8aJ/tu9H4pXPv/rcbSM7a8c0RYP57CLgdlDdUDl6SUACYBAVc4l2tnadAeC9QsrjsDIJBxb27NusEnhTgkWzZgCajlU4UhFREVI8EURlLujg45Xy+LKIN/Hc0s1ps/RH5rIt1utxmn/EWDnN7fg91X7JQz//VEmWk0i+9AlESpsc2vbgSQ/RIYYbbASSJNHLOtBWw1d+5Q2dbPrbW/9eW2v3BF6ERtgEQJhvz8DY/Pi1beenJq0cO2iTY7Y7DSkkGtFo0bZjE3dmU5v0upnhkv70i8CLEPoRtMmQ6QTOWSjlw5MBlJBHDSDCE8b5rmfVkRh0/9Ymh5IKUniYaExtiLE5wwwW0KppfUXhkpIFQEBAplMkWRcWFiNha91mSN+7Yjoa24KxHC+ASMJXHprRKFAOfFoLFKYKLCeZ0jy9a74zc2EzanmDIZDlHxjwy5bsjh3ivAsuq98iv75CFfAaQ7SwcumwwOrjLsl7gwkm9XC0LJyiVcMe+tNNk7yHbrqcGau/UYHlZLvPNv+7xd7cpxZ7s9fUw9G/GI3GdtSD5mDuX/9pCxKo+cW8I+cslpPFonkySYR+tGaKBx/Bq8l0Cm1zWKvRjFqHGK3Lg3PZOXSzDpaS+UfirPNVAJ8iYNNmsLdEH9x/f/c3GlOjp726FjQ/0ghHLqkHTd+XIfgQswEFCWibwzgLYzJI6UEJBa+cPtJOltCqT2CpO4eR2ng5rSODcxbGaXiymFbiSe8QthCVgIoRZ920k3V+kGTdGx5Z3HfLu7729k2fud5STZO/9f5bZTNsneKr4G98L7xmsrFDBF542BF7rhzCEOddjETj6GUdjNUnMd+dQSMcQTtZQiMYgZLeYA7QWiYWo+jSPMZcZ4Zzk33SuPxfHpr97fS7v/4e3ir83bIdtm/74B3jUnkfGqtve9tI1Dor9KKoGOXCh1QvkiQWevNwTmOiuQMzywdQ9+toRK3BxLVDWS7WGSR5HLeTxd8sx/P/leS9T1315cu3ZP3Llm/HftP7bh0ZrU8+L/DCt3jS/9hYfRKRVx+E9aVQyHSCpd4ccps9WguaOycaU5htP4ok73V8L2yO1yfhq6icZ1QMQe9lXSzH88hN/s+5SW9+fPnR/3vzDW/Y0uWXQ9W7/45P3KvIiesa0cgbp0Z2Niw7mu9Mt9vx4p3O2XcEfu2l9WDk9p1ju/Dw/B6kee/SXMc/FkJ9rRG1Xrlt5JQGATyz/Einl3VvvPQzL/n4MPFvKAc93PyB26dCP7pSCU/GWfeWK7/4iscA4Acf/1Er9OozZ2w/x//dY79MnLOnvvzaixcB4NsfvOPUWlB7rbUm6STtm9/4lSuHrnpODSNYXvelV80A+OpaY5dTIrpPQLzUOXs/gIHtceUXL3sEwJcwxFRVyq2gyz5zSZrB/HKvvwAiPPDyay9OK65UYHlScoR7lrJFgHFzxY3V9P9w6VyTc79ZqgAAAABJRU5ErkJggg=="
+            def acIconBytes = Base64.getDecoder().decode(acIconString)
+            stream = new FileOutputStream("${kmzDir}/images/ac.png")
+            stream.write(acIconBytes)
+            }
           }
         } else {
           kmlFile = new File(kmlFileName)
@@ -220,20 +234,15 @@ class MvpParse {
         if (kmlPrintStream == null)  throw new FileException('Cannot open ' + kmlFileName)
       }
 
-      def texPrintStream = null
-      if (tex) {
-        if (texFileName == '') throw new WrongArgException('No name provided')
-        def texFile = new File(texFileName + '.tex')
-        if (texFile == null) throw new FileException('Cannot write ' + texFileName + '.tex')
-        texPrintStream = new PrintStream(texFile)
-        if (texPrintStream == null)  throw new FileException('Cannot open ' + texFileName)
-      }
-
       def journey = 0
       def fltTime = Duration.ZERO
       def blkTime = Duration.ZERO
       def track = 0
       def fuel = 0.0
+      def eastMost = -200.0
+      def westMost = 200.0
+      def southMost = 200.0
+      def northMost = -200.0
       float tachStart
       float tachEnd
       for (def i = 0; i < numFiles; i++) {
@@ -249,29 +258,60 @@ class MvpParse {
         track += flight.track
         fuel += flight.integFuel
 
-        if (summary) flight.printSummary()
         if (information) {
           flight.printInformation()
           if (i < (numFiles -1)) println "-------------------"
         }
+
         if (dump) flight.dump()
+
         if (kml) {
+          if (flight.northMost > northMost) { northMost = flight.northMost }
+          if (flight.southMost < southMost) { southMost = flight.southMost }
+          if (flight.eastMost > eastMost) { eastMost = flight.eastMost }
+          if (flight.westMost < westMost) { westMost = flight.westMost }
+          flights[i] = new Flight(flight, kmlStep)
+        }
+
+        if (fuelUsed) println flight.integFuel
+      }
+      if (kml) {
+        Flight.printKmlHeader(kmlPrintStream, kmlWidth, richKml, kmlIcons, kmlForGE, kmlDirArrowSize, eastMost, westMost, southMost, northMost, kmlScaleFactor)
+
+        if (kmlTourDuration > 0) {
+          Flight.printMovingIconHeader(kmlPrintStream)
+          long n = 0
+          def acIcon
+          if (kmlDirArrows) {
+            acIcon = "images/ac.png"
+          } else {
+            acIcon = "http://maps.google.com/mapfiles/kml/shapes/airports.png"
+          }
+          for (def i = 0; i < numFiles; i++) {
+            n = flights[i].printMovingIcon(kmlPrintStream, n, acIcon, kmlDirArrowSize)
+          }
+          Flight.printTourHeader(kmlPrintStream)
+          def samples = n
+          n = 0
+          for (def i = 0; i < numFiles; i++) {
+            n = flights[i].printTour(kmlPrintStream, n, eastMost, westMost, southMost, northMost, samples, kmlScaleFactor, kmlZoomIn, kmlTourDuration)
+          }
+          Flight.printMovingIconFooter(kmlPrintStream)
+        }
+
+        for (def i = 0; i < numFiles; i++) {
           def colorIndex = 16
           if (kmlColorScheme == 1) colorIndex = i % 16
           if (kmlColorScheme == 2) colorIndex = journey % 16
           colorIndex = deck[colorIndex]
           if (kmlColorScheme == 0 && mixColors) colorIndex = deck[0]
           if (!kmlOmitLocals || !(flight.startsAtHome && flight.endsAtHome) && flight.flightDuration != null && flight.flightDuration.getSeconds() > 300 ) {
-            def f2 = new Flight(flight, kmlStep)
-            f2.printTrack(kmlPrintStream, i == 0, i == (numFiles - 1), colorIndex, kmlWidth, richKml, kmlIcons, kmlForGE, kmlDirArrows, kmzDir, i, kmlDirArrowSize)
-            if (flight.endsAtHome && !mixColors) journey++
-            if (flight.endsAtHome && mixColors) journey += (rnd.nextInt(5) + 1)
+            flights[i].printTrack(kmlPrintStream, colorIndex, richKml, kmlIcons, kmlForGE, kmlDirArrows, kmzDir, i, kmlDirArrowSize)
+            if (flights[i].endsAtHome && !mixColors) journey++
+            if (flights[i].endsAtHome && mixColors) journey += (rnd.nextInt(5) + 1)
           }
         }
-        if (tex) {
-          flight.printTex(texPrintStream, texFileName)
-        }
-        if (fuelUsed) println flight.integFuel
+        Flight.printKmlFooter(kmlPrintStream, kmlIcons, kmlForGE, kmlDirArrows, kmlDirArrowSize, flights[0])
       }
       if (information && numFiles > 1) {
         println "-------------------"
@@ -287,6 +327,12 @@ class MvpParse {
         println "Track: ${track}NM"
         println "Fuel: ${String.format(Locale.US, '%.1f', new Double(fuel))}USG"
         println "Tach Time: ${String.format(Locale.US, '%.2f', new Float(tachEnd - tachStart))}"
+        if (kml) {
+          println "North Most Point: ${northMost}"
+          println "South Most Point: ${southMost}"
+          println "West Most Point: ${westMost}"
+          println "East Most Point: ${eastMost}"
+        }
       }
       if (kml && kmlDirArrows) {
         def proc = "zip -r ${kmlFileName} doc.kml images".execute(null, new File("${kmzDir}"))
@@ -367,13 +413,18 @@ class Flight {
   long track
   def maxAlt
   def labels
-  double homeLat = 49.473
-  double homeLong = 8.51323
+  static double homeLat = 49.473
+  static double homeLong = 8.51323
   def startsAtHome
   def endsAtHome
   def lastFltIndex
+  def firstFltIndex
+  def eastMost
+  def westMost
+  def northMost
+  def southMost
 
-  def distance(lat1, long1, lat2, long2) {
+  def static distance(lat1, long1, lat2, long2) {
     double phi1 = Math.toRadians(lat1)
     double phi2 = Math.toRadians(lat2)
     double mPhi = Math.toRadians((lat1 + lat2) / 2)
@@ -385,7 +436,7 @@ class Flight {
     return R * c
   }
 
-  def coordTrack(lat1, long1, lat2, long2) {
+  def static coordTrack(lat1, long1, lat2, long2) {
     double phi1 = Math.toRadians(lat1)
     double phi2 = Math.toRadians(lat2)
     double dLambda = Math.toRadians(long2 - long1)
@@ -393,29 +444,6 @@ class Flight {
     double x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda)
     double theta = Math.atan2(y, x)
     return (theta * 180/Math.PI + 360) % 360
-  }
-
-  def printSummary() {
-    println "Flight Number: ${fltNum}"
-    if (blockDuration != null) {
-      println "OFB: ${offBlock}"
-    }
-    if (flightDuration != null) {
-      println "T/O: ${takeOffTime}"
-      println "LDG: ${landingTime}"
-    }
-    if (blockDuration != null) {
-      println "ONB: ${onBlock}"
-    }
-    if (flightDuration != null) {
-      println "Flight Time: ${flightDuration}"
-    }
-    if (blockDuration != null) {
-      println "Block Time: ${blockDuration}"
-    }
-    println "Logging Time: ${loggingDuration}"
-    println "Fuel diff: ${fuelDiff} ${labels.est_fuelUnit}"
-    println "Fuel used: ${integFuel} ${labels.est_fuelUnit}"
   }
 
   def printInformation() {
@@ -447,45 +475,6 @@ class Flight {
       println "Fuel: ${String.format(Locale.US, '%.1f', new Double(integFuel))}USG"
       println "Tach Start: ${String.format('%.2f', new Float(tachStart))}"
       println "Tach End: ${String.format('%.2f', new Float(tachEnd))}"
-    }
-  }
-
-  def printTex(file, name) {
-    if (offBlock != null && takeOffTime != null && landingTime != null && onBlock != null && flightDuration != null && blockDuration != null) {
-      file.println "\\documentclass[preview]{standalone}"
-      file.println "\\usepackage{avant}"
-      file.println "\\begin{document}"
-      file.println "\\begin{minipage}[t]{3.5cm}"
-      file.println "\\textbf{\\textsf{"
-      file.println "\\centerline{\\Large ${name}}"
-
-      def ofb = offBlock.atOffset(ZoneOffset.UTC)
-      def tof = takeOffTime.atOffset(ZoneOffset.UTC)
-      def ldg = landingTime.atOffset(ZoneOffset.UTC)
-      def onb = onBlock.atOffset(ZoneOffset.UTC)
-
-      file.println "\\centerline{${tof.format(DateTimeFormatter.ISO_LOCAL_DATE)}}"
-
-      file.println "OFB:\\hfill ${ofb.format(DateTimeFormatter.ISO_LOCAL_TIME)}\\\\"
-      file.println "T/O:\\hfill ${tof.format(DateTimeFormatter.ISO_LOCAL_TIME)}\\\\"
-      file.println "LDG:\\hfill ${ldg.format(DateTimeFormatter.ISO_LOCAL_TIME)}\\\\"
-      file.println "ONB:\\hfill ${onb.format(DateTimeFormatter.ISO_LOCAL_TIME)}\\\\"
-      def h = flightDuration.toHours()
-      def minD = flightDuration.minusHours(h)
-      def m = minD.toMinutes()
-      file.println "FltTime:\\hfill ${h}:${String.format('%02d', new Long(m))}\\\\"
-      h = blockDuration.toHours()
-      minD = blockDuration.minusHours(h)
-      m = minD.toMinutes()
-      file.println "BlkTime:\\hfill ${h}:${String.format('%02d', new Long(m))}\\\\"
-
-      file.println "Dist:\\hfill ${Math.round(dist)}NM\\\\"
-      file.println "Track:\\hfill ${track}NM\\\\"
-      file.println "maxAlt:\\hfill ${maxAlt}ft\\\\"
-      file.println "Fuel:\\hfill ${String.format(Locale.US, '%.1f', new Double(integFuel))}USG}}"
-      file.println "\\end{minipage}"
-      file.println "\\end{document}"
-      println "pdflatex ${name}.tex ; convert -density 400 ${name}.pdf -quality 90 ${name}.png"
     }
   }
 
@@ -523,6 +512,13 @@ class Flight {
     track = f.track
     maxAlt = f.maxAlt
     labels = f.labels
+    eastMost = f.eastMost
+    westMost = f.westMost
+    northMost = f.northMost
+    southMost = f.southMost
+
+    lastFltIndex = -1
+    firstFltIndex = -1
 
     def i
     for (i = 0; i < f.data.size() && (f.data[i].gps_lat == Double.NaN || f.data[i].gps_long == Double.NaN); i++);
@@ -542,7 +538,9 @@ class Flight {
         last = f.data[k].timeStamp
       }
     }
-    lastFltIndex = -1
+    for (i = 0; i < data.size() && firstFltIndex == -1; ++i) {
+      if (data[i].flt_tm != 0.0 && data[i].gps_long != Double.NaN && data[i].gps_lat != Double.NaN) firstFltIndex = i
+    }
     for (i = data.size() - 1; i >= 0 && lastFltIndex == -1; --i) {
         if (data[i].flt_tm != 0.0 && data[i].gps_long != Double.NaN && data[i].gps_lat != Double.NaN) lastFltIndex = i
       }
@@ -557,6 +555,11 @@ class Flight {
     def zuluOffset
     def startTime
     def lines = 0
+
+    eastMost = -200.0
+    westMost = 200.0
+    southMost = 200.0
+    northMost = -200.0
 
     def inBody = false
     f.eachLine() { line ->
@@ -703,6 +706,10 @@ class Flight {
         offBlockAlt = set.gps_alt
         ofbIndex = i
       }
+      if (firstWithGpsTime != null && set.gps_lat != Double.NaN && set.gps_lat > northMost) { northMost = set.gps_lat }
+      if (firstWithGpsTime != null && set.gps_lat != Double.NaN && set.gps_lat < southMost) { southMost = set.gps_lat }
+      if (firstWithGpsTime != null && set.gps_long != Double.NaN && set.gps_long > eastMost) { eastMost = set.gps_long }
+      if (firstWithGpsTime != null && set.gps_long != Double.NaN && set.gps_long < westMost) { westMost = set.gps_long }
     }
     tachStart = data[0].tach_tm
     tachEnd = data[data.size() - 1].tach_tm
@@ -737,7 +744,7 @@ class Flight {
     }
     data = data2
 
-    def firstFltIndex = -1
+    firstFltIndex = -1
     lastFltIndex = -1
     for (int i = 0; i < data.size() && firstFltIndex == -1; ++i) {
       if (data[i].flt_tm != 0.0 && data[i].gps_long != Double.NaN && data[i].gps_lat != Double.NaN) firstFltIndex = i
@@ -809,13 +816,23 @@ class Flight {
     }
   }
 
-  def printTrack (file, header, footer, index, width, rich, icons, forGE, arrows, kmzDir, trackNo, arrowSize) {
-    def lColors_w = ['ff7e649e', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff007cf5', 'ff7b18d2', 'ffd18802', 'ff177781',
-                     'ff00d6ef', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff444444', 'ff4242ff', 'ff8dffff', 'ffee00ee']
-    def lColors_e = ['fff01cce', 'ffa7a700', 'ffb18ff3', 'ffd18802', 'ffb0279c', 'ff007cf5', 'ff5b18c2', 'ff74b7e9',
-                     'ffea4882', 'ff00c6df', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffee00ee']
-    def lColors
-    def iconScale
+  def static lColors_w = ['ff7e649e', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff007cf5', 'ff7b18d2', 'ffd18802', 'ff177781',
+                          'ff00d6ef', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff444444', 'ff4242ff', 'ff8dffff', 'ffbf85c2']
+  def static lColors_e = ['fff01cce', 'ffa7a700', 'ffb18ff3', 'ffd18802', 'ffb0279c', 'ff007cf5', 'ff5b18c2', 'ff74b7e9',
+                          'ffea4882', 'ff00c6df', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffbf85c2']
+  def static lColors
+  def static iconScale
+  def static iColor1 = '880E4F'
+  def static iColor1r = 'ff4f0e88'
+  def static iColor2 = '01579B'
+  def static iColor2r = 'ff9b5701'
+
+  def static printKmlHeader (file, width, rich, icons, forGE, arrowSize, maxLong, minLong, minLat, maxLat, rangeFactor) {
+  def centerLong = (minLong + maxLong) / 2.0
+  def centerLat =(minLat + maxLat) / 2.0
+  def northSouth = distance(maxLat, centerLong, minLat, centerLong)
+  def eastWest = distance(centerLat, minLong, centerLat, maxLong)
+  def range = Math.sqrt(eastWest * eastWest + northSouth * northSouth) * rangeFactor
     if (forGE) {
       iconScale =  0.4 +  (arrowSize * arrowSize / 80) *  3
       lColors = lColors_e
@@ -827,210 +844,376 @@ class Flight {
     def iColor1r = 'ff4f0e88'
     def iColor2 = '01579B'
     def iColor2r = 'ff9b5701'
-    if (header) {
-      file.println '<?xml version="1.0" encoding="UTF-8"?>'
-      file.println '<kml xmlns="http://www.opengis.net/kml/2.2"'
-      file.println ' xmlns:gx="http://www.google.com/kml/ext/2.2">'
-      file.println '<Document>'
-      file.println '    <LookAt>'
-      file.println '      <gx:TimeSpan>'
-      file.println "        <begin>${data[0].timeStamp}</begin>"
-      file.println "        <end>${data[data.size()-1].timeStamp}</end>"
-      file.println '      </gx:TimeSpan>'
-      file.println "      <longitude>${data[data.size()>>1].gps_long}</longitude>"
-      file.println "      <latitude>${data[data.size()>>1].gps_lat}</latitude>"
-      file.println '      <altitude>100000</altitude>'
-      file.println '      <range>1000000.0</range>'
-      file.println '    </LookAt>'
-      if (icons) {
-        file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-normal\">"
-        file.println '      <IconStyle>'
-        file.println "        <color>${iColor1r}</color>"
-        file.println "        <scale>${iconScale}</scale>"
-        file.println '        <Icon>'
-        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
-        file.println '        </Icon>'
-        file.println '      </IconStyle>'
-        file.println '      <LabelStyle>'
-        file.println '        <scale>0</scale>'
-        file.println '      </LabelStyle>'
-        file.println '      <BalloonStyle>'
-        file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
-        file.println '      </BalloonStyle>'
-        file.println '    </Style>'
-        file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-highlight\">"
-        file.println '      <IconStyle>'
-        file.println "        <color>${iColor1r}</color>"
-        file.println "        <scale>${iconScale}</scale>"
-        file.println '        <Icon>'
-        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
-        file.println '        </Icon>'
-        file.println '      </IconStyle>'
-        file.println '      <LabelStyle>'
-        file.println "        <scale>${iconScale}</scale>"
-        file.println '      </LabelStyle>'
-        file.println '      <BalloonStyle>'
-        file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
-        file.println '      </BalloonStyle>'
-        file.println '    </Style>'
-        file.println "    <StyleMap id=\"icon-1591-${iColor1}-nodesc\">"
-        file.println '      <Pair>'
-        file.println '        <key>normal</key>'
-        file.println "        <styleUrl>#icon-1591-${iColor1}-nodesc-normal</styleUrl>"
-        file.println '      </Pair>'
-        file.println '      <Pair>'
-        file.println '        <key>highlight</key>'
-        file.println "        <styleUrl>#icon-1591-${iColor1}-nodesc-highlight</styleUrl>"
-        file.println '      </Pair>'
-        file.println '    </StyleMap>'
-        file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-normal\">"
-        file.println '      <IconStyle>'
-        file.println "        <color>${iColor2r}</color>"
-        file.println "        <scale>${iconScale}</scale>"
-        file.println '        <Icon>'
-        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
-        file.println '        </Icon>'
-        file.println '      </IconStyle>'
-        file.println '      <LabelStyle>'
-        file.println '        <scale>0</scale>'
-        file.println '      </LabelStyle>'
-        file.println '      <BalloonStyle>'
-        file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
-        file.println '      </BalloonStyle>'
-        file.println '    </Style>'
-        file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-highlight\">"
-        file.println '      <IconStyle>'
-        file.println "        <color>${iColor2r}</color>"
-        file.println "        <scale>${iconScale}</scale>"
-        file.println '        <Icon>'
-        file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
-        file.println '        </Icon>'
-        file.println '      </IconStyle>'
-        file.println '      <LabelStyle>'
-        file.println "        <scale>${iconScale}</scale>"
-        file.println '      </LabelStyle>'
-        file.println '      <BalloonStyle>'
-        file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
-        file.println '      </BalloonStyle>'
-        file.println '    </Style>'
-        file.println "    <StyleMap id=\"icon-1750-${iColor2}-nodesc\">"
-        file.println '      <Pair>'
-        file.println '        <key>normal</key>'
-        file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-normal</styleUrl>"
-        file.println '      </Pair>'
-        file.println '      <Pair>'
-        file.println '        <key>highlight</key>'
-        file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-highlight</styleUrl>"
-        file.println '      </Pair>'
-        file.println '    </StyleMap>'
-      }
-      for (def i = 0; i <= 16; ++ i) {
-        file.println "    <Style id=\"multiTrack_n${i}\">"
-        file.println '      <IconStyle>'
-        file.println '      	<Icon>'
-        file.println '      	</Icon>'
-        file.println '      </IconStyle>'
-        file.println '      <LineStyle>'
-        file.println "        <color>${lColors[i]}</color>"
-        file.println "        <width>${width}</width>"
-        file.println '      </LineStyle>'
-        file.println '    </Style>'
-        file.println "    <Style id=\"multiTrack_h${i}\">"
-        file.println '      <IconStyle>'
-        file.println '      	<Icon>' // xxxx
-        file.println '      	</Icon>'
-        file.println '      </IconStyle>'
-        file.println '      <LineStyle>'
-        file.println "        <color>${lColors[i]}</color>"
-        file.println "        <width>${width + 1}</width>"
-        file.println '      </LineStyle>'
-        file.println '    </Style>'
-        file.println "    <StyleMap id=\"multiTrack${i}\">"
-        file.println '      <Pair>'
-        file.println '        <key>normal</key>'
-        file.println "        <styleUrl>#multiTrack_n${i}</styleUrl>"
-        file.println '      </Pair>'
-        file.println '      <Pair>'
-        file.println '        <key>highlight</key>'
-        file.println "        <styleUrl>#multiTrack_h${i}</styleUrl>"
-        file.println '      </Pair>'
-        file.println '    </StyleMap>'
-      }
-      if (rich) {
-        file.println '    <Schema id="schema">'
-        file.println '      <gx:SimpleArrayField name="time" type="string">'
-        file.println '        <displayName>Time</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="gs" type="int">'
-        file.println '        <displayName>GS</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="altitude" type="int">'
-        file.println '        <displayName>Altitude</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="hp" type="int">'
-        file.println '        <displayName>Power</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="rpm" type="int">'
-        file.println '        <displayName>RPM</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="f_flow" type="float">'
-        file.println '        <displayName>Fuel flow</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="m_p" type="float">'
-        file.println '        <displayName>Manifold Pressure</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="oil_p" type="float">'
-        file.println '        <displayName>Oil Pressure</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="oil_t" type="float">'
-        file.println '        <displayName>Oil Temperature</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="egt1" type="float">'
-        file.println '        <displayName>EGT1</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="egt2" type="float">'
-        file.println '        <displayName>EGT2</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="egt3" type="float">'
-        file.println '        <displayName>EGT3</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="egt4" type="float">'
-        file.println '        <displayName>EGT4</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="egt5" type="float">'
-        file.println '        <displayName>EGT5</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="egt6" type="float">'
-        file.println '        <displayName>EGT6</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="oat" type="float">'
-        file.println '        <displayName>OAT</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="tit" type="float">'
-        file.println '        <displayName>TIT</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="cht1" type="float">'
-        file.println '        <displayName>CHT1</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="cht2" type="float">'
-        file.println '        <displayName>CHT2</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="cht3" type="float">'
-        file.println '        <displayName>CHT3</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="cht4" type="float">'
-        file.println '        <displayName>CHT4</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="cht5" type="float">'
-        file.println '        <displayName>CHT5</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '      <gx:SimpleArrayField name="cht6" type="float">'
-        file.println '        <displayName>CHT6</displayName>'
-        file.println '      </gx:SimpleArrayField>'
-        file.println '    </Schema>'
-      }
-      file.println '  <Folder>'
+    file.println '<?xml version="1.0" encoding="UTF-8"?>'
+    file.println '<kml xmlns="http://www.opengis.net/kml/2.2"'
+    file.println ' xmlns:gx="http://www.google.com/kml/ext/2.2">'
+    file.println '<Document>'
+    file.println '    <LookAt>'
+    file.println "      <longitude>${centerLong}</longitude>"
+    file.println "      <latitude>${centerLat}</latitude>"
+    file.println '      <altitude>0</altitude>'
+    file.println "      <range>${range}</range>"
+    file.println '    </LookAt>'
+    if (icons) {
+      file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-normal\">"
+      file.println '      <IconStyle>'
+      file.println "        <color>${iColor1r}</color>"
+      file.println "        <scale>${iconScale}</scale>"
+      file.println '        <Icon>'
+      file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
+      file.println '        </Icon>'
+      file.println '      </IconStyle>'
+      file.println '      <LabelStyle>'
+      file.println '        <scale>0</scale>'
+      file.println '      </LabelStyle>'
+      file.println '      <BalloonStyle>'
+      file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+      file.println '      </BalloonStyle>'
+      file.println '    </Style>'
+      file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-highlight\">"
+      file.println '      <IconStyle>'
+      file.println "        <color>${iColor1r}</color>"
+      file.println "        <scale>${iconScale}</scale>"
+      file.println '        <Icon>'
+      file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/homegardenbusiness.png</href>'
+      file.println '        </Icon>'
+      file.println '      </IconStyle>'
+      file.println '      <LabelStyle>'
+      file.println "        <scale>${iconScale}</scale>"
+      file.println '      </LabelStyle>'
+      file.println '      <BalloonStyle>'
+      file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+      file.println '      </BalloonStyle>'
+      file.println '    </Style>'
+      file.println "    <StyleMap id=\"icon-1591-${iColor1}-nodesc\">"
+      file.println '      <Pair>'
+      file.println '        <key>normal</key>'
+      file.println "        <styleUrl>#icon-1591-${iColor1}-nodesc-normal</styleUrl>"
+      file.println '      </Pair>'
+      file.println '      <Pair>'
+      file.println '        <key>highlight</key>'
+      file.println "        <styleUrl>#icon-1591-${iColor1}-nodesc-highlight</styleUrl>"
+      file.println '      </Pair>'
+      file.println '    </StyleMap>'
+      file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-normal\">"
+      file.println '      <IconStyle>'
+      file.println "        <color>${iColor2r}</color>"
+      file.println "        <scale>${iconScale}</scale>"
+      file.println '        <Icon>'
+      file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
+      file.println '        </Icon>'
+      file.println '      </IconStyle>'
+      file.println '      <LabelStyle>'
+      file.println '        <scale>0</scale>'
+      file.println '      </LabelStyle>'
+      file.println '      <BalloonStyle>'
+      file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+      file.println '      </BalloonStyle>'
+      file.println '    </Style>'
+      file.println "    <Style id=\"icon-1750-${iColor2}-nodesc-highlight\">"
+      file.println '      <IconStyle>'
+      file.println "        <color>${iColor2r}</color>"
+      file.println "        <scale>${iconScale}</scale>"
+      file.println '        <Icon>'
+      file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
+      file.println '        </Icon>'
+      file.println '      </IconStyle>'
+      file.println '      <LabelStyle>'
+      file.println "        <scale>${iconScale}</scale>"
+      file.println '      </LabelStyle>'
+      file.println '      <BalloonStyle>'
+      file.println '        <text><![CDATA[<h3>$[name]</h3>]]></text>'
+      file.println '      </BalloonStyle>'
+      file.println '    </Style>'
+      file.println "    <StyleMap id=\"icon-1750-${iColor2}-nodesc\">"
+      file.println '      <Pair>'
+      file.println '        <key>normal</key>'
+      file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-normal</styleUrl>"
+      file.println '      </Pair>'
+      file.println '      <Pair>'
+      file.println '        <key>highlight</key>'
+      file.println "        <styleUrl>#icon-1750-${iColor2}-nodesc-highlight</styleUrl>"
+      file.println '      </Pair>'
+      file.println '    </StyleMap>'
     }
+    for (def i = 0; i <= 16; ++ i) {
+      file.println "    <Style id=\"multiTrack_n${i}\">"
+      file.println '      <IconStyle>'
+      file.println '      	<Icon>'
+      file.println '      	</Icon>'
+      file.println '      </IconStyle>'
+      file.println '      <LineStyle>'
+      file.println "        <color>${lColors[i]}</color>"
+      file.println "        <width>${width}</width>"
+      file.println '      </LineStyle>'
+      file.println '    </Style>'
+      file.println "    <Style id=\"multiTrack_h${i}\">"
+      file.println '      <IconStyle>'
+      file.println '      	<Icon>'
+      file.println '      	</Icon>'
+      file.println '      </IconStyle>'
+      file.println '      <LineStyle>'
+      file.println "        <color>${lColors[i]}</color>"
+      file.println "        <width>${width + 1}</width>"
+      file.println '      </LineStyle>'
+      file.println '    </Style>'
+      file.println "    <StyleMap id=\"multiTrack${i}\">"
+      file.println '      <Pair>'
+      file.println '        <key>normal</key>'
+      file.println "        <styleUrl>#multiTrack_n${i}</styleUrl>"
+      file.println '      </Pair>'
+      file.println '      <Pair>'
+      file.println '        <key>highlight</key>'
+      file.println "        <styleUrl>#multiTrack_h${i}</styleUrl>"
+      file.println '      </Pair>'
+      file.println '    </StyleMap>'
+    }
+    if (rich) {
+      file.println '    <Schema id="schema">'
+      file.println '      <gx:SimpleArrayField name="time" type="string">'
+      file.println '        <displayName>Time</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="gs" type="int">'
+      file.println '        <displayName>GS</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="altitude" type="int">'
+      file.println '        <displayName>Altitude</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="hp" type="int">'
+      file.println '        <displayName>Power</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="rpm" type="int">'
+      file.println '        <displayName>RPM</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="f_flow" type="float">'
+      file.println '        <displayName>Fuel flow</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="m_p" type="float">'
+      file.println '        <displayName>Manifold Pressure</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="oil_p" type="float">'
+      file.println '        <displayName>Oil Pressure</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="oil_t" type="float">'
+      file.println '        <displayName>Oil Temperature</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="egt1" type="float">'
+      file.println '        <displayName>EGT1</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="egt2" type="float">'
+      file.println '        <displayName>EGT2</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="egt3" type="float">'
+      file.println '        <displayName>EGT3</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="egt4" type="float">'
+      file.println '        <displayName>EGT4</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="egt5" type="float">'
+      file.println '        <displayName>EGT5</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="egt6" type="float">'
+      file.println '        <displayName>EGT6</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="oat" type="float">'
+      file.println '        <displayName>OAT</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="tit" type="float">'
+      file.println '        <displayName>TIT</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="cht1" type="float">'
+      file.println '        <displayName>CHT1</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="cht2" type="float">'
+      file.println '        <displayName>CHT2</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="cht3" type="float">'
+      file.println '        <displayName>CHT3</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="cht4" type="float">'
+      file.println '        <displayName>CHT4</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="cht5" type="float">'
+      file.println '        <displayName>CHT5</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '      <gx:SimpleArrayField name="cht6" type="float">'
+      file.println '        <displayName>CHT6</displayName>'
+      file.println '      </gx:SimpleArrayField>'
+      file.println '    </Schema>'
+    }
+    file.println '  <Folder>'
+  }
+
+  def static printKmlFooter (file, icons, forGE, arrows, arrowSize, firstFlight) {
+    if (icons) {
+      file.println '    <Placemark>'
+      if (firstFlight.startsAtHome) {
+        file.println '     <name>Home</name>'
+        file.println "     <styleUrl>#icon-1591-${iColor1}-nodesc</styleUrl>"
+        file.println '     <Point>'
+        file.println '      <coordinates>'
+        file.println "      ${homeLong},${homeLat}"
+        file.println '      </coordinates>'
+        file.println '     </Point>'
+      } else {
+        def toLong = 0.0
+        def toLat = 0.0
+        def toTrack = 0.0
+        if (firstFlight.firstFltIndex != -1) {
+          def i = firstFlight.firstFltIndex + 12
+          while ((Double.isNaN(firstFlight.data[i].gps_lat) || Double.isNaN(firstFlight.data[i].gps_long)) && i < firstFlight.lastFlightIndex) i++
+          toTrack = coordTrack(firstFlight.data[firstFlight.firstFltIndex].gps_lat, firstFlight.data[firstFlight.firstFltIndex].gps_long, firstFlight.data[i].gps_lat, firstFlight.data[i].gps_long)
+          toLong = firstFlight.data[i].gps_long
+          toLat = firstFlight.data[i].gps_lat
+        }
+        def iconScale
+        if (!forGE) {
+          file.println '     <name>AD</name>'
+          file.println "     <styleUrl>#icon-1750-${iColor2}-nodesc</styleUrl>"
+          iconScale = 1.0
+          lColors = lColors_w
+        } else {
+          iconScale =  0.4 +  (arrowSize * arrowSize / 80) *  3
+          lColors = lColors_e
+          file.println "     <Style>"
+          file.println "        <IconStyle>"
+          file.println "        <heading>${toTrack}</heading>"
+          file.println "          <scale>${iconScale}</scale>"
+          file.println "          <Icon>"
+          if (arrows) {
+            file.println '          <href>images/ad.png</href>'
+          } else {
+            file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
+          }
+          file.println "          </Icon>"
+          file.println "        </IconStyle>"
+          file.println "     </Style>"
+        }
+        file.println '     <Point>'
+        file.println '      <coordinates>'
+        file.println "      ${toLong},${toLat}"
+        file.println '      </coordinates>'
+        file.println '     </Point>'
+      }
+      file.println '    </Placemark>'
+    }
+    file.println '  </Folder>'
+    file.println '</Document>'
+    file.println '</kml>'
+  }
+
+  def static printMovingIconHeader (file) {
+      file.println '    <name>Flight path with timestamps</name>'
+      file.println '    <open>1</open>'
+      file.println '     <Style>'
+      file.println '       <ListStyle>'
+      file.println '         <listItemType>checkHideChildren</listItemType>'
+      file.println '        </ListStyle>'
+      file.println '     </Style>'
+  }
+
+  def static printTourHeader (file) {
+    file.println '  </Folder>'
+    file.println '    <gx:Tour>'
+    file.println '      <name>Play me</name>'
+    file.println '      <gx:Playlist>'
+  }
+
+  def static  printMovingIconFooter (file) {
+    file.println '      </gx:Playlist>'
+    file.println '    </gx:Tour>'
+    file.println '  <Folder>'
+  }
+
+  def printMovingIcon (file, start, icon, iconSize) {
+      if (takeOffTime == null || landingTime == null) return start
+      def startTime = OffsetDateTime.of(2024, 1, 1, 0, 1, 5, 0, ZoneOffset.UTC)
+      long marks = start
+      def scale =  iconSize / 2.0 - 1
+      for (def i = firstFltIndex; i < lastFltIndex; ++i) {
+        if (!Double.isNaN(data[i].gps_lat) && !Double.isNaN(data[i].gps_long)) {
+          def i1 = i + 1
+          while (Double.isNaN(data[i1].gps_lat) || Double.isNaN(data[i1].gps_long)) i1++
+          def i2 = i1 + 1
+          while (Double.isNaN(data[i2].gps_lat) || Double.isNaN(data[i2].gps_long)) i2++
+          def track1 = coordTrack(data[i].gps_lat, data[i].gps_long, data[i1].gps_lat, data[i1].gps_long)
+          def track2 = coordTrack(data[i].gps_lat, data[i].gps_long, data[i2].gps_lat, data[i2].gps_long)
+          def track = (track1 + track2) * 0.5
+          file.println '    <Placemark>'
+          file.println '      <gx:TimeSpan>'
+          def begin = startTime.plusSeconds(marks * 60 - 30).toInstant()
+          def end = startTime.plusSeconds(marks * 60 + 30).toInstant()
+          file.println "        <begin>${begin}</begin>"
+          file.println "        <end>${end}</end>"
+          file.println '      </gx:TimeSpan>'
+          file.println "     <Style>"
+          file.println "        <IconStyle>"
+          file.println "        <heading>${data[i].gps_track}</heading>"
+          file.println "          <scale>${scale}</scale>"
+          file.println "          <Icon>"
+          file.println "            <href>${icon}</href>"
+          file.println "          </Icon>"
+          file.println "        </IconStyle>"
+          file.println "     </Style>"
+          file.println '      <Point>'
+          file.println '        <altitudeMode>absolute</altitudeMode>'
+          file.println "        <coordinates>${data[i].gps_long},${data[i].gps_lat},${data[i].gps_alt * (12 * 0.0254) + 30}</coordinates>"
+          file.println '      </Point>'
+          file.println '    </Placemark>'
+          marks += 1
+        }
+      }
+      return marks
+  }
+
+  def printTour (file, start, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn, tourDuration) {
+      if (takeOffTime == null || landingTime == null) return start
+      def lookDuration = tourDuration * (1.0 / points)
+      def centerLong = (minLong + maxLong) / 2.0
+      def centerLat =(minLat + maxLat) / 2.0
+      def northSouth = distance(maxLat, centerLong, minLat, centerLong)
+      def eastWest = distance(centerLat, minLong, centerLat, maxLong)
+      def range1 = Math.sqrt(eastWest * eastWest + northSouth * northSouth) * rangeFactor
+      def startTime = OffsetDateTime.of(2024, 1, 1, 0, 1, 5, 0, ZoneOffset.UTC)
+      long marks = start
+      for (def i = firstFltIndex; i < lastFltIndex; ++i) {
+        if (!Double.isNaN(data[i].gps_lat) && !Double.isNaN(data[i].gps_long)) {
+          def range
+          def lat
+          def lon
+          if (zoomIn) {
+            def prog = new Double(marks) / new Double(points)
+            def a1 = 2.0 * Math.abs(prog - 0.5)
+            def a2 = 1.0 - a1
+            range = range1 - (range1 * 0.8 * a2)
+            lat = centerLat * a1 + data[i].gps_lat * a2
+            lon = centerLong * a1 + data[i].gps_long * a2
+          } else {
+            range = range1
+            lat = centerLat
+            lon = centerLong
+          }
+          file.println '        <gx:FlyTo>'
+          file.println "          <gx:duration>${lookDuration}</gx:duration>"
+          file.println '          <gx:flyToMode>smooth</gx:flyToMode>'
+          file.println '          <LookAt>'
+          file.println '            <gx:TimeStamp>'
+          def time = startTime.plusMinutes(marks).toInstant()
+          file.println "              <when>${time}</when>"
+          file.println '            </gx:TimeStamp>'
+          file.println "            <longitude>${lon}</longitude>"
+          file.println "            <latitude>${lat}</latitude>"
+          file.println '            <altitude>0</altitude>'
+          file.println "            <range>${range}</range>"
+          file.println '          </LookAt>'
+          file.println '        </gx:FlyTo>'
+          marks += 1
+        }
+      }
+      return marks
+  }
+
+  def printTrack (file, index, rich, icons, forGE, arrows, kmzDir, trackNo, arrowSize) {
     file.println '    <Placemark>'
     if (!forGE) {
       file.println "    <name>Flt ${fltNum} ${fltStart}</name>"
@@ -1352,7 +1535,7 @@ class Flight {
         file.println "        <heading>${ldgTrack}</heading>"
         file.println "          <scale>${iconScale}</scale>"
         file.println "          <Icon>"
-        if (forGE) {
+        if (forGE && arrows) {
           file.println '          <href>images/ad.png</href>'
         } else {
           file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
@@ -1363,26 +1546,10 @@ class Flight {
       }
       file.println '     <Point>'
       file.println '      <coordinates>'
-      file.println "      ${landingLong},${landingLat}"
+      file.println "      ${landingLong},${landingLat},${data[lastFltIndex].gps_alt * (12 * 0.0254) + 10}"
       file.println '      </coordinates>'
       file.println '     </Point>'
       file.println '    </Placemark>'
-    }
-    if (footer) {
-      if (icons) {
-        file.println '    <Placemark>'
-        file.println '     <name>Home</name>'
-        file.println "     <styleUrl>#icon-1591-${iColor1}-nodesc</styleUrl>"
-        file.println '     <Point>'
-        file.println '      <coordinates>'
-        file.println "      ${homeLong},${homeLat}"
-        file.println '      </coordinates>'
-        file.println '     </Point>'
-        file.println '    </Placemark>'
-      }
-      file.println '  </Folder>'
-      file.println '</Document>'
-      file.println '</kml>'
     }
   }
 }
