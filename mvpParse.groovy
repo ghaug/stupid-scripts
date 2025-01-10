@@ -253,6 +253,7 @@ class MvpParse {
       def northMost = -200.0
       float tachStart
       float tachEnd
+      def numFlights = 0
       for (def i = 0; i < numFiles; i++) {
         def csvFile = new File(csvFileNames[i])
         if (csvFile == null || !csvFile.exists() || !csvFile.canRead()) throw new FileException('Cannot find ' + csvFileName)
@@ -273,12 +274,12 @@ class MvpParse {
 
         if (dump) flight.dump()
 
-        if (kml) {
+        if (kml && (!kmlOmitLocals || !(flight.startsAtHome && flight.endsAtHome)) && flight.flightDuration != null && flight.flightDuration.getSeconds() > 300) {
           if (flight.northMost > northMost) { northMost = flight.northMost }
           if (flight.southMost < southMost) { southMost = flight.southMost }
           if (flight.eastMost > eastMost) { eastMost = flight.eastMost }
           if (flight.westMost < westMost) { westMost = flight.westMost }
-          flights[i] = new Flight(flight, kmlStep, kmlSmoothening)
+          flights[numFlights++] = new Flight(flight, kmlStep, kmlSmoothening)
         }
 
         if (fuelUsed) println flight.integFuel
@@ -288,38 +289,38 @@ class MvpParse {
 
         if (kmlTourDuration > 0) {
           Flight.printMovingIconHeader(kmlPrintStream)
-          long n = 0
+          def n = 0
           def acIcon
           if (kmlDirArrows) {
             acIcon = "images/ac.png"
           } else {
             acIcon = "http://maps.google.com/mapfiles/kml/shapes/airports.png"
           }
-          for (def i = 0; i < numFiles; i++) {
+          for (def i = 0; i < numFlights; i++) {
             n = flights[i].printMovingIcon(kmlPrintStream, n, acIcon, kmlDirArrowSize)
           }
           Flight.printTourHeader(kmlPrintStream)
           def samples = n
           n = 0
-          for (def i = 0; i < numFiles; i++) {
+          for (def i = 0; i < numFlights; i++) {
             n = flights[i].printTour(kmlPrintStream, n, eastMost, westMost, southMost, northMost, samples, kmlScaleFactor, kmlZoomIn, kmlTourDuration)
           }
           Flight.printMovingIconFooter(kmlPrintStream)
         }
 
-        for (def i = 0; i < numFiles; i++) {
+        def fields = new Fields()
+        def arrows = []
+        for (def i = 0; i < numFlights; i++) {
           def colorIndex = 16
           if (kmlColorScheme == 1) colorIndex = i % 16
           if (kmlColorScheme == 2) colorIndex = journey % 16
           colorIndex = deck[colorIndex]
           if (kmlColorScheme == 0 && mixColors) colorIndex = deck[0]
-          if (!kmlOmitLocals || !(flight.startsAtHome && flight.endsAtHome) && flight.flightDuration != null && flight.flightDuration.getSeconds() > 300 ) {
-            flights[i].printTrack(kmlPrintStream, colorIndex, richKml, kmlIcons, kmlForGE, kmlDirArrows, kmzDir, i, kmlDirArrowSize)
-            if (flights[i].endsAtHome && !mixColors) journey++
-            if (flights[i].endsAtHome && mixColors) journey += (rnd.nextInt(5) + 1)
-          }
+          flights[i].printTrack(kmlPrintStream, colorIndex, richKml, kmlIcons, kmlForGE, kmlDirArrows, kmzDir, i, kmlDirArrowSize, fields, arrows)
+          if (flights[i].endsAtHome && !mixColors) journey++
+          if (flights[i].endsAtHome && mixColors) journey += (rnd.nextInt(5) + 1)
         }
-        Flight.printKmlFooter(kmlPrintStream, kmlIcons, kmlForGE, kmlDirArrows, kmlDirArrowSize, flights[0])
+        Flight.printKmlFooter(kmlPrintStream, kmlIcons, kmlForGE, kmlDirArrows, kmlDirArrowSize, flights[0], fields, arrows)
       }
       if (information && numFiles > 1) {
         println "-------------------"
@@ -819,30 +820,11 @@ class Flight {
         if (data[i].flt_tm != 0.0 && data[i].gps_long != Double.NaN && data[i].gps_lat != Double.NaN) lastFltIndex = i
       }
     }
-    if (firstFltIndex != -1 && lastFltIndex != -1) {
-      takeOffTime = data[firstFltIndex].timeStamp
-      takeOffLat = data[firstFltIndex].gps_lat
-      takeOffLong = data[firstFltIndex].gps_long
-      takeOffAlt = data[firstFltIndex].gps_alt
-      landingTime = data[lastFltIndex].timeStamp
-      landingLat = data[lastFltIndex].gps_lat
-      landingLong = data[lastFltIndex].gps_long
-      landingAlt = data[lastFltIndex].gps_alt
-      flightDuration = Duration.between(takeOffTime, landingTime)
-    }
 
-    if (takeOffLat != null) {
-      dist = coordDist(takeOffLat, takeOffLong, landingLat, LandingLong)
-      startsAtHome = (coordDist(takeOffLat, takeOffLong, homeLat, homeLong) < 3.0)
-    } else {
-      dist = 0
-      startsAtHome = false
-    }
-    if (landingLat != null) {
-      endsAtHome = (coordDist(landingLat, landingLong, homeLat, homeLong) < 3.0)
-    } else {
-      dist = 0
-      endsAtHome = false
+   if (firstFltIndex != -1 && lastFltIndex != -1) {
+      takeOffTime = data[firstFltIndex].timeStamp
+      landingTime = data[lastFltIndex].timeStamp
+      flightDuration = Duration.between(takeOffTime, landingTime)
     }
 
     avgSpeed = 0.0
@@ -891,6 +873,29 @@ class Flight {
     }
 
     loggingDuration = Duration.between(this.fltStart, data[data.size() - 1].timeStamp)
+
+   if (firstFltIndex != -1 && lastFltIndex != -1) {
+      takeOffLat = data[firstFltIndex].gps_lat
+      takeOffLong = data[firstFltIndex].gps_long
+      takeOffAlt = data[firstFltIndex].gps_alt
+      landingLat = data[lastFltIndex].gps_lat
+      landingLong = data[lastFltIndex].gps_long
+      landingAlt = data[lastFltIndex].gps_alt
+    }
+
+    if (takeOffLat != null) {
+      dist = coordDist(takeOffLat, takeOffLong, landingLat, LandingLong)
+      startsAtHome = (coordDist(takeOffLat, takeOffLong, homeLat, homeLong) < 3.0)
+    } else {
+      dist = 0
+      startsAtHome = false
+    }
+    if (landingLat != null) {
+      endsAtHome = (coordDist(landingLat, landingLong, homeLat, homeLong) < 3.0)
+    } else {
+      dist = 0
+      endsAtHome = false
+    }
 
     integFuel = 0.0
     data.eachWithIndex { set, i ->
@@ -1138,43 +1143,38 @@ class Flight {
     file.println '  <Folder>'
   }
 
-  def static printKmlFooter (file, icons, forGE, arrows, arrowSize, firstFlight) {
+  def static printKmlFooter (file, icons, forGE, arrows, arrowSize, firstFlight, fields, dirArrows) {
     if (icons) {
-      file.println '    <Placemark>'
-      if (firstFlight.startsAtHome) {
+      file.println '  </Folder>'
+      file.println '  <Folder>'
+      file.println '    <name>Aerodromes</name>'
+
+      if (fields.hasHome) {
+        file.println '    <Placemark>'
         file.println '     <name>Home</name>'
         file.println "     <styleUrl>#icon-1591-${iColor1}-nodesc</styleUrl>"
         file.println '     <Point>'
+        file.println '      <altitudeMode>absolute</altitudeMode>'
+        file.println "      <gx:drawOrder>2</gx:drawOrder>"
         file.println '      <coordinates>'
         file.println "      ${homeLong},${homeLat}"
         file.println '      </coordinates>'
         file.println '     </Point>'
-      } else {
-        def toLong = 0.0
-        def toLat = 0.0
-        def toTrack = 0.0
-        if (firstFlight.firstFltIndex != -1) {
-          def i = firstFlight.firstFltIndex + 12
-          while ((Double.isNaN(firstFlight.data[i].gps_lat) || Double.isNaN(firstFlight.data[i].gps_long)) && i < firstFlight.lastFlightIndex) i++
-          toTrack = coordTrack(firstFlight.data[firstFlight.firstFltIndex].gps_lat, firstFlight.data[firstFlight.firstFltIndex].gps_long, firstFlight.data[i].gps_lat, firstFlight.data[i].gps_long)
-          toLong = firstFlight.data[i].gps_long
-          toLat = firstFlight.data[i].gps_lat
-        }
-        def iconScale
+        file.println '    </Placemark>'
+      }
+
+      for (def i = 0; i < fields.fields.size(); i++) {
+        file.println '    <Placemark>'
         if (!forGE) {
           file.println '     <name>AD</name>'
           file.println "     <styleUrl>#icon-1750-${iColor2}-nodesc</styleUrl>"
-          iconScale = 1.0
-          lColors = lColors_w
         } else {
-          iconScale =  0.4 +  (arrowSize * arrowSize / 80) *  3
-          lColors = lColors_e
           file.println "     <Style>"
           file.println "        <IconStyle>"
-          file.println "        <heading>${toTrack}</heading>"
+          file.println "        <heading>${fields.fields[i].landingTrack}</heading>"
           file.println "          <scale>${iconScale}</scale>"
           file.println "          <Icon>"
-          if (arrows) {
+          if (forGE && arrows) {
             file.println '          <href>images/ad.png</href>'
           } else {
             file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
@@ -1184,12 +1184,43 @@ class Flight {
           file.println "     </Style>"
         }
         file.println '     <Point>'
+        file.println "      <gx:drawOrder>2</gx:drawOrder>"
+        file.println '      <altitudeMode>absolute</altitudeMode>'
         file.println '      <coordinates>'
-        file.println "      ${toLong},${toLat}"
+        file.println "        ${fields.fields[i].lon},${fields.fields[i].lat},${fields.fields[i].alt * (12 * 0.0254) + 10}"
         file.println '      </coordinates>'
         file.println '     </Point>'
+        file.println '    </Placemark>'
       }
-      file.println '    </Placemark>'
+    }
+    file.println '  </Folder>'
+    if (arrows) {
+      file.println '  <Folder>'
+      file.println '    <name>Arrows</name>'
+      dirArrows.each { a ->
+        file.println '    <Placemark>'
+        file.println "     <Style>"
+        file.println "        <IconStyle>"
+        file.println "        <color>${a.color}</color>"
+        if (forGE) {
+          file.println "        <heading>${a.track}</heading>"
+        }
+        file.println "          <scale>${iconScale}</scale>"
+        file.println "          <Icon>"
+        file.println "            <href>images/${a.icon}</href>"
+        file.println "          </Icon>"
+        file.println "          <hotSpot x=\"${a.xHot}\" y=\"${a.yHot}\" xunits=\"fraction\" yunits=\"fraction\"/>"
+        file.println "        </IconStyle>"
+        file.println "     </Style>"
+        file.println '     <Point>'
+        file.println "       <gx:drawOrder>1</gx:drawOrder>"
+        file.println '       <altitudeMode>absolute</altitudeMode>'
+        file.println '       <coordinates>'
+        file.println "         ${a.lon},${a.lat},${a.alt * (12 * 0.0254)}"
+        file.println '       </coordinates>'
+        file.println '     </Point>'
+        file.println '    </Placemark>'
+      }
     }
     file.println '  </Folder>'
     file.println '</Document>'
@@ -1243,13 +1274,15 @@ class Flight {
           file.println "     <Style>"
           file.println "        <IconStyle>"
           file.println "        <heading>${data[i].calc_track}</heading>"
-          file.println "          <scale>${scale}</scale>"
+          file.println "          <scale>${scale * 1.5}</scale>"
           file.println "          <Icon>"
           file.println "            <href>${icon}</href>"
           file.println "          </Icon>"
+          file.println "          <hotSpot x=\"0.5\" y=\"0.7\" xunits=\"fraction\" yunits=\"fraction\"/>"
           file.println "        </IconStyle>"
           file.println "     </Style>"
           file.println '      <Point>'
+          file.println "        <gx:drawOrder>3</gx:drawOrder>"
           file.println '        <altitudeMode>absolute</altitudeMode>'
           file.println "        <coordinates>${data[i].gps_long},${data[i].gps_lat},${data[i].gps_alt * (12 * 0.0254) + 30}</coordinates>"
           file.println '      </Point>'
@@ -1307,7 +1340,10 @@ class Flight {
       return marks
   }
 
-  def printTrack (file, index, rich, icons, forGE, arrows, kmzDir, trackNo, arrowSize) {
+  def printTrack (file, index, rich, icons, forGE, arrows, kmzDir, trackNo, arrowSize, fields, dirArrows) {
+    if (trackNo == 0) {
+      file.println "  <name>Tracks</name>"
+    }
     file.println '    <Placemark>'
     if (!forGE) {
       file.println "    <name>Flt ${fltNum} ${fltStart}</name>"
@@ -1546,105 +1582,52 @@ class Flight {
       }
       position += d
       if (position >= 0 && position < data.size()) {
-        def start = position - 3
-        def end = position + 3
-
-        while (start >= 0 && (Double.isNaN(data[start].gps_lat) || Double.isNaN(data[start].gps_long))) start--
-        while (end < data.size() && (Double.isNaN(data[end].gps_lat) || Double.isNaN(data[end].gps_long))) end++
-
-        if (start >= 0 && end < data.size()) {
-          def track = coordTrack(data[start].gps_lat, data[start].gps_long, data[end].gps_lat, data[end].gps_long)
-          def xHot
-          def yHot
-          def icon
-          if (forGE) {
-            xHot = 0.5
-            yHot = 1.0
-            icon = "arrow.png"
-          } else {
-            xHot = (Math.sin(Math.toRadians(track)) * ((16.0 - (9.0 - arrowSize)) / 16.0) + 1) / 2
-            yHot = (Math.cos(Math.toRadians(track)) * ((16.0 - (9.0 - arrowSize)) / 16.0) + 1) / 2
-            BufferedImage bi = new BufferedImage(32, 16, BufferedImage.TYPE_INT_ARGB)
-            for (def x = 0; x < 32; x++) for (def y = 0; y < 16; y++) bi.setRGB(x, y, 0)
-            def colStr = lColors[index]
-            colStr = colStr.substring(0, 2) + colStr.substring(6, 8) + colStr.substring(4, 6) + colStr.substring(2, 4)
-            int color = Integer.parseUnsignedInt(colStr, 16)
-            for (def j = (9 - arrowSize); j < 16; j++) {
-              for (def i = 0; i < (16 - j); i++) {
-                bi.setRGB(16+i, i + j, color)
-                bi.setRGB(16-i, i + j, color)
-              }
-            }
-            BufferedImage rotate = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D graphic = rotate.createGraphics();
-            graphic.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            graphic.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
-            graphic.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-            graphic.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            graphic.rotate(Math.toRadians(track), 16, 16);
-            graphic.drawImage(bi, 0, 0, null);
-            graphic.dispose();
-            icon = "a${trackNo}.png"
-            ImageIO.write(rotate, "png", new File("${kmzDir}/images/${icon}"))
-          }
-
-          file.println '    <Placemark>'
-          file.println "     <Style>"
-          file.println "        <IconStyle>"
-          file.println "        <color>${lColors[index]}</color>"
-          if (forGE) {
-            file.println "        <heading>${track}</heading>"
-          }
-          file.println "          <scale>${iconScale}</scale>"
-          file.println "          <Icon>"
-          file.println "            <href>images/${icon}</href>"
-          file.println "          </Icon>"
-          file.println "          <hotSpot x=\"${xHot}\" y=\"${yHot}\" xunits=\"fraction\" yunits=\"fraction\"/>"
-          file.println "        </IconStyle>"
-          file.println "     </Style>"
-          file.println '     <Point>'
-          file.println '       <altitudeMode>absolute</altitudeMode>'
-          file.println '       <coordinates>'
-          file.println "         ${data[position].gps_long},${data[position].gps_lat},${data[position].gps_alt * (12 * 0.0254)}"
-          file.println '       </coordinates>'
-          file.println '     </Point>'
-          file.println '    </Placemark>'
-        }
-      }
-    }
-    if (icons && !endsAtHome) {
-      file.println '    <Placemark>'
-      if (!forGE) {
-        file.println '     <name>AD</name>'
-        file.println "     <styleUrl>#icon-1750-${iColor2}-nodesc</styleUrl>"
-      } else {
-        def ldgTrack = 0
-        if (lastFltIndex != -1) {
-          def i = lastFltIndex - 6
-          while ((Double.isNaN(data[i].gps_lat) || Double.isNaN(data[i].gps_long)) && i > 0) i--
-          ldgTrack = coordTrack(data[i].gps_lat, data[i].gps_long, data[lastFltIndex].gps_lat, data[lastFltIndex].gps_long)
-        }
-        file.println "     <Style>"
-        file.println "        <IconStyle>"
-        file.println "        <heading>${ldgTrack}</heading>"
-        file.println "          <scale>${iconScale}</scale>"
-        file.println "          <Icon>"
-        if (forGE && arrows) {
-          file.println '          <href>images/ad.png</href>'
+        def track = data[position].calc_track
+        def xHot
+        def yHot
+        def icon
+        if (forGE) {
+          xHot = 0.5
+          yHot = 1.0
+          icon = "arrow.png"
         } else {
-          file.println '          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>'
+          xHot = (Math.sin(Math.toRadians(track)) * ((16.0 - (9.0 - arrowSize)) / 16.0) + 1) / 2
+          yHot = (Math.cos(Math.toRadians(track)) * ((16.0 - (9.0 - arrowSize)) / 16.0) + 1) / 2
+          BufferedImage bi = new BufferedImage(32, 16, BufferedImage.TYPE_INT_ARGB)
+          for (def x = 0; x < 32; x++) for (def y = 0; y < 16; y++) bi.setRGB(x, y, 0)
+          def colStr = lColors[index]
+          colStr = colStr.substring(0, 2) + colStr.substring(6, 8) + colStr.substring(4, 6) + colStr.substring(2, 4)
+          int color = Integer.parseUnsignedInt(colStr, 16)
+          for (def j = (9 - arrowSize); j < 16; j++) {
+            for (def i = 0; i < (16 - j); i++) {
+              bi.setRGB(16+i, i + j, color)
+              bi.setRGB(16-i, i + j, color)
+            }
+          }
+          BufferedImage rotate = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+          Graphics2D graphic = rotate.createGraphics();
+          graphic.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+          graphic.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+          graphic.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+          graphic.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+          graphic.rotate(Math.toRadians(track), 16, 16);
+          graphic.drawImage(bi, 0, 0, null);
+          graphic.dispose();
+          icon = "a${trackNo}.png"
+          ImageIO.write(rotate, "png", new File("${kmzDir}/images/${icon}"))
         }
-        file.println "          </Icon>"
-        file.println "        </IconStyle>"
-        file.println "     </Style>"
+        dirArrows << new Arrow(lColors[index], track, icon, xHot, yHot, data[position].gps_lat, data[position].gps_long, data[position].gps_alt)
       }
-      file.println '     <Point>'
-      file.println '      <coordinates>'
-      file.println "      ${landingLong},${landingLat},${data[lastFltIndex].gps_alt * (12 * 0.0254) + 10}"
-      file.println '      </coordinates>'
-      file.println '     </Point>'
-      file.println '    </Placemark>'
     }
+    if (icons && !startsAtHome && firstFltIndex != -1) {
+      def ad = new Aerodrome(takeOffLat, takeOffLong, data[firstFltIndex].gps_alt, data[firstFltIndex].calc_track)
+      fields.addField(ad)
+    }
+    if (icons && !endsAtHome && lastFltIndex != -1) {
+      def ad = new Aerodrome(landingLat, landingLong, data[lastFltIndex].gps_alt, data[lastFltIndex - 1].calc_track)
+      fields.addField(ad)
+    }
+    if (startsAtHome || endsAtHome) fields.hasHome = true
   }
 }
 
@@ -2195,5 +2178,59 @@ class Labels {
       names << label
     }
   }
+}
 
+class Aerodrome {
+  def lat
+  def lon
+  def alt
+  def landingTrack
+
+  def Aerodrome (lt, ln, a, t) {
+    lat = lt
+    lon = ln
+    alt = a
+    landingTrack = t
+  }
+}
+
+class Fields {
+  def fields
+  def hasHome
+
+  def Fields() {
+    hasHome = false
+    fields = []
+  }
+
+  def addField(n) {
+    for (def i = 0; i < fields.size(); i++) {
+      if (Flight.coordDist(n.lat, n.lon, fields[i].lat, fields[i].lon) < 3.0) {
+        return
+      }
+    }
+    fields << n
+  }
+}
+
+class Arrow {
+  def color
+  def track
+  def icon
+  def xHot
+  def yHot
+  def lat
+  def lon
+  def alt
+
+  Arrow(c, t, i, x, y, lt, ln, a) {
+    color = c
+    track = t
+    icon = i
+    xHot = x
+    yHot = y
+    lat = lt
+    lon = ln
+    alt = a
+  }
 }
