@@ -37,7 +37,8 @@ class MvpParse {
     println '           -x int  smoothen criss cross of tracks in kml (0 to 5, 0 no smoothening, default 1)'
     println '           -s int  scale factor for initial kml view (and for moving icon tour, default 3000)'
     println '           -t int  generate kml moving icon tour of int seconds (default 0, implies -e)'
-    println '           -z      zoom in on kml moving icon tour (optical effect)'
+    println '           -g name file name to use as moving icon in kml (optional)'
+    println '           -z int  select zoom optical effect for kml moving icon tour (0 to 4, default 0, none)'
     println '           -v      output debug info on stdout'
     println '    file [file...]:'
     println '             csv file(s)'
@@ -69,10 +70,11 @@ class MvpParse {
       def mixColors = false
       def kmlTourDuration = 0
       def kmlScaleFactor = 3000
-      def kmlZoomIn = false
+      def kmlZoomIn = 0
       def kmlSmoothening = 2
       def deck = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
       def flights = []
+      def acIconFile = null
 
       args.eachWithIndex { arg, i ->
         if (ignore == 0) {
@@ -107,7 +109,10 @@ class MvpParse {
               ignore = 1
               break
             case '-z' :
-              kmlZoomIn = true
+              if (args.length > i + 1) {
+                kmlZoomIn = args[i + 1] as int
+              }
+              ignore = 1
               break
             case'-s' :
               if (args.length > i + 1) {
@@ -130,6 +135,12 @@ class MvpParse {
             case '-x' :
               if (args.length > i + 1) {
                 kmlSmoothening = (args[i + 1] as int) + 1
+              }
+              ignore = 1
+              break
+            case '-g' :
+              if (args.length > i + 1) {
+                acIconFile = args[i + 1]
               }
               ignore = 1
               break
@@ -295,6 +306,9 @@ class MvpParse {
             acIcon = "images/ac.png"
           } else {
             acIcon = "http://maps.google.com/mapfiles/kml/shapes/airports.png"
+          }
+          if (acIconFile != null) {
+            acIcon = acIconFile
           }
           for (def i = 0; i < numFlights; i++) {
             n = flights[i].printMovingIcon(kmlPrintStream, n, acIcon, kmlDirArrowSize)
@@ -916,9 +930,9 @@ class Flight {
   }
 
   def static lColors_w = ['ff7e649e', 'ffa7a700', 'ffb18ff3', 'ffb0279c', 'ff007cf5', 'ff7b18d2', 'ffd18802', 'ff177781',
-                          'ff00d6ef', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff444444', 'ff4242ff', 'ff8dffff', 'ffbf85c2']
+                          'ff00d6ef', 'ffb73a67', 'ffda8a9f', 'ff0051c6', 'ff2f8b55', 'ff444444', 'ff4242ff', 'ff8dffff', 'ffc285bf']
   def static lColors_e = ['fff01cce', 'ffa7a700', 'ffb18ff3', 'ffd18802', 'ffb0279c', 'ff007cf5', 'ff5b18c2', 'ff74b7e9',
-                          'ffea4882', 'ff00c6df', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffbf85c2']
+                          'ffea4882', 'ff00c6df', 'ffda8a9f', 'ff0051c6', 'ff69b355', 'ffaaaaaa', 'ff4242ff', 'ff8dffff', 'ffc285bf']
   def static lColors
   def static iconScale
   def static iColor1 = '880E4F'
@@ -1274,7 +1288,7 @@ class Flight {
           file.println "     <Style>"
           file.println "        <IconStyle>"
           file.println "        <heading>${data[i].calc_track}</heading>"
-          file.println "          <scale>${scale * 1.5}</scale>"
+          file.println "          <scale>${scale * 2}</scale>"
           file.println "          <Icon>"
           file.println "            <href>${icon}</href>"
           file.println "          </Icon>"
@@ -1308,18 +1322,25 @@ class Flight {
           def range
           def lat
           def lon
-          if (zoomIn) {
-            def prog = new Double(marks) / new Double(points)
-            def a1 = 2.0 * Math.abs(prog - 0.5)
-            def a2 = 1.0 - a1
-            range = range1 - (range1 * 0.8 * a2)
-            lat = centerLat * a1 + data[i].gps_lat * a2
-            lon = centerLong * a1 + data[i].gps_long * a2
-          } else {
-            range = range1
-            lat = centerLat
-            lon = centerLong
+          def prog = new Double(marks) / new Double(points)
+          def a1 = 1.0
+          def a2 = 0.0
+          if (zoomIn == 1) {
+            a1 = 2.0 * Math.abs(prog - 0.5)
+            a2 = 1.0 - a1
+          } else if (zoomIn == 2) {
+            a2 = 2.0 * Math.abs(prog - 0.5)
+            a1 = 1.0 - a2
+          } else if (zoomIn == 3) {
+            a2 = prog
+            a1 = 1.0 - a2
+          } else if (zoomIn == 4) {
+            a1 = prog
+            a2 = 1.0 - a1
           }
+          range = range1 - (range1 * 0.8 * a2)
+          lat = centerLat * a1 + data[i].gps_lat * a2
+          lon = centerLong * a1 + data[i].gps_long * a2
           file.println '        <gx:FlyTo>'
           file.println "          <gx:duration>${lookDuration}</gx:duration>"
           file.println '          <gx:flyToMode>smooth</gx:flyToMode>'
