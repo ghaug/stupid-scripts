@@ -31,6 +31,7 @@ class MvpParse {
     println '           -j      icons in kml'
     println '           -m      mix up colors in kml'
     println '           -o      omit local flights in kml'
+    println '           -p      omit traffic paterns in moving icon tour'
     println '           -r      output rich kml (for interactive use of GE)'
     println '           -u int  position update interval in kml (default 2)'
     println '           -w int  line width of tracks in kml (default 5)'
@@ -67,6 +68,7 @@ class MvpParse {
       def richKml = false
       def kmlColorScheme = 0
       def kmlOmitLocals = false
+      def kmlOmitPattern = false
       def mixColors = false
       def kmlTourDuration = 0
       def kmlScaleFactor = 3000
@@ -180,6 +182,9 @@ class MvpParse {
             case '-o' :
               kmlOmitLocals = true
               break
+            case '-p' :
+              kmlOmitPattern = true
+              break
             case { arg.substring(0, 1) != '-' } :
               csvFileNames[numFiles++] = arg
               break
@@ -290,13 +295,13 @@ class MvpParse {
           if (flight.southMost < southMost) { southMost = flight.southMost }
           if (flight.eastMost > eastMost) { eastMost = flight.eastMost }
           if (flight.westMost < westMost) { westMost = flight.westMost }
-          flights[numFlights++] = new Flight(flight, kmlStep, kmlSmoothening)
+          flights[numFlights++] = new Flight(flight, kmlStep, kmlSmoothening, kmlOmitPattern)
         }
 
         if (fuelUsed) println flight.integFuel
       }
       if (kml) {
-        Flight.printKmlHeader(kmlPrintStream, kmlWidth, richKml, kmlIcons, kmlForGE, kmlDirArrowSize, eastMost, westMost, southMost, northMost, kmlScaleFactor)
+        flights[0].printKmlHeader(kmlPrintStream, kmlWidth, richKml, kmlIcons, kmlForGE, kmlDirArrowSize, eastMost, westMost, southMost, northMost, kmlScaleFactor, args.join(' '), kmlTourDuration, kmlZoomIn)
 
         if (kmlTourDuration > 0) {
           Flight.printMovingIconHeader(kmlPrintStream)
@@ -313,13 +318,13 @@ class MvpParse {
           for (def i = 0; i < numFlights; i++) {
             n = flights[i].printMovingIcon(kmlPrintStream, n, acIcon, kmlDirArrowSize)
           }
-          Flight.printTourHeader(kmlPrintStream)
           def samples = n
+          flights[0].printTourHeader(kmlPrintStream, 0, eastMost, westMost, southMost, northMost, samples, kmlScaleFactor, kmlZoomIn)
           n = 0
           for (def i = 0; i < numFlights; i++) {
             n = flights[i].printTour(kmlPrintStream, n, eastMost, westMost, southMost, northMost, samples, kmlScaleFactor, kmlZoomIn, kmlTourDuration)
           }
-          Flight.printMovingIconFooter(kmlPrintStream)
+          flights[numFlights - 1].printMovingIconFooter(kmlPrintStream, n, eastMost, westMost, southMost, northMost, samples, kmlScaleFactor, kmlZoomIn)
         }
 
         def fields = new Fields()
@@ -446,6 +451,8 @@ class Flight {
   def westMost
   def northMost
   def southMost
+  def depProcIndex
+  def arrProcIndex
 
   // Distance from one coordinate to another (NM)
   def static coordDist(lat1, long1, lat2, long2) {
@@ -532,7 +539,7 @@ class Flight {
     }
   }
 
-  def Flight (Flight f, stepSeconds, smoothRange) {
+  def Flight (Flight f, stepSeconds, smoothRange, omitPattern) {
     fltNum = f.fltNum
     fltDateFormat = f.fltDateFormat
     fltStart = f.fltStart
@@ -575,23 +582,67 @@ class Flight {
     firstFltIndex = -1
 
     def i
-    for (i = 0; i < f.data.size() && (f.data[i].gps_lat == Double.NaN || f.data[i].gps_long == Double.NaN); i++);
-    if (i == f.data.size()) {
-      data = f.data
-      return
-    }
     def j
-    for (j = f.data.size() - 1; j >= 0 && (f.data[j].gps_lat == Double.NaN || f.data[j].gps_long == Double.NaN); j--);
+    def ffIndex
 
-    data = []
-    data << f.data[i]
-    def last = f.data[i].timeStamp
-    for (int k = i; k < j ; k++) {
-      if (Duration.between(last, f.data[k].timeStamp).getSeconds() >= stepSeconds) {
-        data << f.data[k]
-        last = f.data[k].timeStamp
+    if (!omitPattern || f.depProcIndex == -1 || arrProcIndex == -1) {
+      for (i = 0; i < f.data.size() && (f.data[i].gps_lat == Double.NaN || f.data[i].gps_long == Double.NaN); i++);
+      if (i == f.data.size()) {
+        data = f.data
+        return
       }
+      for (j = f.data.size() - 1; j >= 0 && (f.data[j].gps_lat == Double.NaN || f.data[j].gps_long == Double.NaN); j--);
+
+      data = []
+      data << f.data[i]
+      def last = f.data[i].timeStamp
+      for (int k = i; k < j ; k++) {
+        if (Duration.between(last, f.data[k].timeStamp).getSeconds() >= stepSeconds) {
+          data << f.data[k]
+          last = f.data[k].timeStamp
+        }
+      }
+    } else {
+      def stepDist = stepSeconds * 90 / 3600
+      def last = f.data[f.firstFltIndex].timeStamp
+      for (i = f.firstFltIndex + 1; i <= f.arrProcIndex; i++) {
+        if (Duration.between(last, f.data[i].timeStamp).getSeconds() >= stepSeconds) {
+          data << f.data[i]
+          last = f.data[i].timeStamp
+        }
+      }
+
+      for (j = f.lastFltIndex; j > f.firstFltIndex && (f.data[j].gps_alt - landingAlt) <= 100; j--);
+      def ldgCrsR = coordTrack(f.landingLat, f.landingLong, f.data[j].gps_lat, f.data[j].gps_long)
+      def ret = trackCoord(f.landingLat, f.landingLong, ldgCrsR, 1.5)
+      def ff_lat = ret[0]
+      def ff_long = ret[1]
+      ffIndex  = data.size()
+      def lastCrs = coordTrack(data[ffIndex - 1].gps_lat, data[ffIndex - 1].gps_long, ff_lat, ff_long)
+      data[ffIndex - 1].calc_track = lastCrs
+      dist = 2 * stepDist
+      for (i = ffIndex; dist > stepDist ; i++){
+        ret = trackCoord(data[i - 1].gps_lat, data[i - 1].gps_long, lastCrs, stepDist)
+        data << new TimeStampedSet(data[i - 1].timeStamp.plusSeconds(stepSeconds), ret[0], ret[1], data[i - 1].time)
+        data[i].calc_track = lastCrs
+        dist = coordDist(ff_lat, ff_long, data[i].gps_lat, data[i].gps_long)
+      }
+      def ldgCrs = coordTrack(data[i - 1].gps_lat, data[i - 1].gps_long, f.landingLat, f.landingLong)
+      dist = 2 * stepDist
+      for (; dist > stepDist ; i++){
+        ret = trackCoord(data[i - 1].gps_lat, data[i - 1].gps_long, ldgCrs, stepDist)
+        data << new TimeStampedSet(data[i - 1].timeStamp.plusSeconds(stepSeconds), ret[0], ret[1], data[i - 1].time)
+        data[i].calc_track = ldgCrs
+        dist = coordDist(f.landingLat, f.landingLong, data[i].gps_lat, data[i].gps_long)
+      }
+      data << f.data[f.lastFltIndex]
+      data[i].calc_track = ldgCrs
+      for (i = f.lastFltIndex + 1; f.data[i].gps_lat == Double.NaN || f.data[i].gps_lat == Double.NaN; i++) ;
+      data << f.data[i]
+      data[data.size() - 1].calc_track = ldgCrs
     }
+
+
     for (i = 0; i < data.size() && firstFltIndex == -1; ++i) {
       if (data[i].flt_tm != 0.0) {
         for (j = i; j < data.size() && firstFltIndex == -1; ++j) {
@@ -603,10 +654,11 @@ class Flight {
         if (data[i].flt_tm != 0.0 && data[i].gps_long != Double.NaN && data[i].gps_lat != Double.NaN) lastFltIndex = i
     }
     if (firstFltIndex != -1 && lastFltIndex != -1 && smoothRange > 1) {
-      for (i = firstFltIndex; i < lastFltIndex; i++) {
+      def smoothLimit = omitPattern ?  ffIndex - 1 : lastFltIndex
+      for (i = firstFltIndex; i < smoothLimit; i++) {
         def trk1 = coordTrack(data[i].gps_lat, data[i].gps_long, data[i + 1].gps_lat, data[i + 1].gps_long)
         def trkCor = 0.0
-        for (j = 2; j <= smoothRange && (i + j) < lastFltIndex; j++) {
+        for (j = 2; j <= smoothRange && (i + j) < smoothLimit; j++) {
           def trkN = coordTrack(data[i].gps_lat, data[i].gps_long, data[i + j].gps_lat, data[i + j].gps_long)
           def trkDiff = courseDiff(trk1, trkN)
           trkCor += trkDiff / smoothRange
@@ -699,7 +751,6 @@ class Flight {
         // In header, collect data
         def m = line =~ /^Local Time: /
         if (m) {
-          //println "line: ${line}"
           m = line =~ /\d\d:\d\d:\d\d/
           assert m
           rawTime = m.group()
@@ -911,6 +962,8 @@ class Flight {
       endsAtHome = false
     }
 
+    depProcIndex = -1
+    arrProcIndex = -1
     integFuel = 0.0
     data.eachWithIndex { set, i ->
       if (i >= 1) {
@@ -918,6 +971,10 @@ class Flight {
         if (time < 0) println "time: ${time}"
         if (set.f_flow < 0) println "set.f_flow: ${set.f_flow}"
         integFuel += set.f_flow * time
+      }
+      if (firstFltIndex != -1 && lastFltIndex != -1) {
+        if (depProcIndex == -1 && i > firstFltIndex && coordDist(set.gps_lat, set.gps_long, takeOffLat, takeOffLong) > 3.0) depProcIndex = i
+        if (arrProcIndex == -1 && coordDist(set.gps_lat, set.gps_long, landingLat, landingLong) < 3.0) arrProcIndex = i
       }
     }
   }
@@ -940,12 +997,12 @@ class Flight {
   def static iColor2 = '01579B'
   def static iColor2r = 'ff9b5701'
 
-  def static printKmlHeader (file, width, rich, icons, forGE, arrowSize, maxLong, minLong, minLat, maxLat, rangeFactor) {
-  def centerLong = (minLong + maxLong) / 2.0
-  def centerLat =(minLat + maxLat) / 2.0
-  def northSouth = coordDist(maxLat, centerLong, minLat, centerLong)
-  def eastWest = coordDist(centerLat, minLong, centerLat, maxLong)
-  def range = Math.sqrt(eastWest * eastWest + northSouth * northSouth) * rangeFactor
+  def printKmlHeader (file, width, rich, icons, forGE, arrowSize, maxLong, minLong, minLat, maxLat, rangeFactor, commandLine, tourDuration, zoomIn) {
+    def centerLong = (minLong + maxLong) / 2.0
+    def centerLat =(minLat + maxLat) / 2.0
+    def northSouth = coordDist(maxLat, centerLong, minLat, centerLong)
+    def eastWest = coordDist(centerLat, minLong, centerLat, maxLong)
+    def range = Math.sqrt(eastWest * eastWest + northSouth * northSouth) * rangeFactor
     if (forGE) {
       iconScale =  0.4 +  (arrowSize * arrowSize / 80) *  3
       lColors = lColors_e
@@ -961,12 +1018,17 @@ class Flight {
     file.println '<kml xmlns="http://www.opengis.net/kml/2.2"'
     file.println ' xmlns:gx="http://www.google.com/kml/ext/2.2">'
     file.println '<Document>'
-    file.println '    <LookAt>'
-    file.println "      <longitude>${centerLong}</longitude>"
-    file.println "      <latitude>${centerLat}</latitude>"
-    file.println '      <altitude>0</altitude>'
-    file.println "      <range>${range}</range>"
-    file.println '    </LookAt>'
+    file.println "<description>Command line: mvpParse ${commandLine}</description>"
+    if (tourDuration > 0) {
+      printTourHelper(file, 0, maxLong, minLong, minLat, maxLat, 1, rangeFactor, zoomIn, 0, firstFltIndex, firstFltIndex + 1, 1, false)
+    } else {
+      file.println '    <LookAt>'
+      file.println "      <longitude>${centerLong}</longitude>"
+      file.println "      <latitude>${centerLat}</latitude>"
+      file.println '      <altitude>0</altitude>'
+      file.println "      <range>${range}</range>"
+      file.println '    </LookAt>'
+    }
     if (icons) {
       file.println "    <Style id=\"icon-1591-${iColor1}-nodesc-normal\">"
       file.println '      <IconStyle>'
@@ -1251,19 +1313,6 @@ class Flight {
       file.println '     </Style>'
   }
 
-  def static printTourHeader (file) {
-    file.println '  </Folder>'
-    file.println '    <gx:Tour>'
-    file.println '      <name>Play me</name>'
-    file.println '      <gx:Playlist>'
-  }
-
-  def static  printMovingIconFooter (file) {
-    file.println '      </gx:Playlist>'
-    file.println '    </gx:Tour>'
-    file.println '  <Folder>'
-  }
-
   def printMovingIcon (file, start, icon, iconSize) {
       if (takeOffTime == null || landingTime == null) return start
       def startTime = OffsetDateTime.of(2024, 1, 1, 0, 1, 5, 0, ZoneOffset.UTC)
@@ -1307,9 +1356,28 @@ class Flight {
       return marks
   }
 
+  def printTourHeader (file, start, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn) {
+    file.println '  </Folder>'
+    file.println '    <gx:Tour>'
+    file.println '      <name>Play me</name>'
+    file.println '      <gx:Playlist>'
+    printTourHelper(file, 0, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn, 0, firstFltIndex, firstFltIndex + 1, 1, true)
+  }
+
+  def printMovingIconFooter (file, start, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn) {
+    printTourHelper(file, start - 1, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn, 0, lastFltIndex - 1, lastFltIndex, 1, true)
+    file.println '      </gx:Playlist>'
+    file.println '    </gx:Tour>'
+    file.println '  <Folder>'
+  }
+
   def printTour (file, start, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn, tourDuration) {
+    return printTourHelper(file, start, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn, tourDuration, firstFltIndex, lastFltIndex, -1, true)
+  }
+
+  def printTourHelper (file, start, maxLong, minLong, minLat, maxLat, points, rangeFactor, zoomIn, tourDuration, first, last, staticDuration, inTour) {
       if (takeOffTime == null || landingTime == null) return start
-      def lookDuration = tourDuration * (1.0 / points)
+      def lookDuration = staticDuration == -1 ? tourDuration * (1.0 / points) : staticDuration
       def centerLong = (minLong + maxLong) / 2.0
       def centerLat =(minLat + maxLat) / 2.0
       def northSouth = coordDist(maxLat, centerLong, minLat, centerLong)
@@ -1317,7 +1385,7 @@ class Flight {
       def range1 = Math.sqrt(eastWest * eastWest + northSouth * northSouth) * rangeFactor
       def startTime = OffsetDateTime.of(2024, 1, 1, 0, 1, 5, 0, ZoneOffset.UTC)
       long marks = start
-      for (def i = firstFltIndex; i < lastFltIndex; ++i) {
+      for (def i = first; i < last; ++i) {
         if (!Double.isNaN(data[i].gps_lat) && !Double.isNaN(data[i].gps_long)) {
           def range
           def lat
@@ -1341,9 +1409,11 @@ class Flight {
           range = range1 - (range1 * 0.8 * a2)
           lat = centerLat * a1 + data[i].gps_lat * a2
           lon = centerLong * a1 + data[i].gps_long * a2
-          file.println '        <gx:FlyTo>'
-          file.println "          <gx:duration>${lookDuration}</gx:duration>"
-          file.println '          <gx:flyToMode>smooth</gx:flyToMode>'
+          if (inTour) {
+            file.println '        <gx:FlyTo>'
+            file.println "          <gx:duration>${lookDuration}</gx:duration>"
+            file.println '          <gx:flyToMode>smooth</gx:flyToMode>'
+          }
           file.println '          <LookAt>'
           file.println '            <gx:TimeStamp>'
           def time = startTime.plusMinutes(marks).toInstant()
@@ -1354,7 +1424,9 @@ class Flight {
           file.println '            <altitude>0</altitude>'
           file.println "            <range>${range}</range>"
           file.println '          </LookAt>'
-          file.println '        </gx:FlyTo>'
+          if (inTour) {
+            file.println '        </gx:FlyTo>'
+          }
           marks += 1
         }
       }
@@ -1701,6 +1773,13 @@ implements Comparable<TimeStampedSet> {
   int auxin2
   int auxin3
   double calc_track
+
+  TimeStampedSet(timeSt, lat, lon, tm) {
+    timeStamp = timeSt
+    time = tm
+    gps_lat = lat
+    gps_long = lon
+  }
 
   TimeStampedSet(timeSt, values, labels) {
     timeStamp = timeSt
