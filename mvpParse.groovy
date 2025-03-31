@@ -31,7 +31,7 @@ class MvpParse {
     println '           -j      icons in kml'
     println '           -m      mix up colors in kml'
     println '           -o      omit local flights in kml'
-    println '           -p      omit traffic paterns in moving icon tour'
+    println '           -p      omit traffic patterns in moving icon tour'
     println '           -r      output rich kml (for interactive use of GE)'
     println '           -u int  position update interval in kml (default 2)'
     println '           -w int  line width of tracks in kml (default 5)'
@@ -1297,8 +1297,8 @@ class Flight {
         file.println '     </Point>'
         file.println '    </Placemark>'
       }
-    }
     file.println '  </Folder>'
+    }
     file.println '</Document>'
     file.println '</kml>'
   }
